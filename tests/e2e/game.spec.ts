@@ -172,3 +172,42 @@ test('bots play autonomously over time', async ({ page }) => {
   const after = await game<number>(page, 'return g.world.players.reduce((s, p) => s + p.stats.foodEaten, 0);');
   expect(after).toBeGreaterThan(before + 20);
 });
+
+test('bots mode: named, skinned minions follow the cursor and split on their keys', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(() => localStorage.setItem('mass-io:settings', JSON.stringify({ botCount: 0 })));
+  await page.reload();
+  await page.getByTestId('mode-bots').click();
+  await expect(page.getByTestId('minion-setup')).toBeVisible();
+  await page.getByTestId('minion-name').fill('Lavitas');
+  await page.getByTestId('minion-skin-lava').click();
+  await play(page, 'Boss');
+  await expect(page.getByTestId('minions')).toContainText('/3');
+  // minions spawn gradually: one after ~1 s, not all at once
+  await expect(page.getByTestId('minions')).toContainText('1/3', { timeout: 3000 });
+  const look = await game<{ name: string; skin: string; master: string }>(
+    page,
+    `const m = g.minions.minionsOf(g.me)[0]; return { name: m.name, skin: m.skin, master: m.master.name };`,
+  );
+  expect(look).toEqual({ name: 'Lavitas', skin: 'lava', master: 'Boss' });
+  // follows the master's cursor target
+  await page.mouse.move(1200, 600);
+  await page.waitForTimeout(300);
+  const follows = await game<boolean>(
+    page,
+    `const m = g.minions.minionsOf(g.me)[0]; return m.targetX === g.me.targetX && m.targetY === g.me.targetY;`,
+  );
+  expect(follows).toBe(true);
+  // E splits the minions, the master stays whole
+  await game(page, `const m = g.minions.minionsOf(g.me)[0]; g.world.setMass(m.cells[0], 120);`);
+  await page.keyboard.press('KeyE');
+  await page.waitForTimeout(200);
+  expect(await game<number>(page, 'return g.minions.minionsOf(g.me)[0].cells.length;')).toBe(2);
+  expect(await game<number>(page, 'return g.me.cells.length;')).toBe(1);
+  // minions never take a leaderboard slot
+  const onBoard = await game<boolean>(
+    page,
+    `const ids = new Set(g.minions.minionsOf(g.me).map((m) => m.id)); return g.world.leaderboard.some((e) => ids.has(e.id));`,
+  );
+  expect(onBoard).toBe(false);
+});
