@@ -139,9 +139,12 @@ test('death screen shows stats and play again respawns', async ({ page }) => {
   await play(page, 'Victim');
   await game(
     page,
-    `const bot = g.world.players.find((p) => p.isBot && p.alive);
-     const c = bot.cells[0]; g.world.setMass(c, 3000);
-     c.x = g.me.cells[0].x; c.y = g.me.cells[0].y; bot.targetX = c.x; bot.targetY = c.y;`,
+    // fold any pieces (e.g. after popping on a virus) into one cell, then drop a much bigger bot on it
+    `const me = g.me.cells[0];
+     for (const c of g.me.cells.slice(1)) g.world.absorb(me, c);
+     const bot = g.world.players.find((p) => p.isBot && p.alive);
+     const c = bot.cells[0]; g.world.setMass(c, Math.max(3000, me.mass * 2));
+     c.x = me.x; c.y = me.y; bot.targetX = c.x; bot.targetY = c.y;`,
   );
   await expect(page.getByTestId('death')).toBeVisible();
   await expect(page.getByTestId('death')).toContainText('Masa máxima');
@@ -182,8 +185,13 @@ test('bots mode: named, skinned minions follow the cursor and split on their key
   await page.getByTestId('minion-name').fill('Lavitas');
   await page.getByTestId('minion-skin-lava').click();
   await play(page, 'Boss');
-  // 100 mass: can't pop on a virus or swallow its own minions during the test
-  await game(page, 'g.world.setMass(g.me.cells[0], 100);');
+  // a single 100-mass cell: can't pop on a virus or swallow its own minions during the test
+  await game(
+    page,
+    `const me = g.me.cells[0]; const sink = g.world.createEntity('spawner', 0, 0, 1, '#000');
+     for (const c of g.me.cells.slice(1)) g.world.absorb(sink, c);
+     g.world.setMass(me, 100);`,
+  );
   await expect(page.getByTestId('minions')).toContainText('/3');
   // minions spawn gradually: one after ~1 s, not all at once
   await expect(page.getByTestId('minions')).toContainText('1/3', { timeout: 3000 });
