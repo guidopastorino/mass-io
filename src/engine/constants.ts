@@ -46,8 +46,12 @@ export const PHYSICS = {
   RECOMBINE_PER_MASS: 0.0233,
   /** Freshly split cells ignore sibling rigid collision during this window (s). */
   SPLIT_NO_COLLIDE: 0.5,
-  /** Decay: fraction of mass lost per second (only above DECAY_MIN_MASS). */
-  DECAY_RATE: 0.004,
+  /**
+   * Decay: the reference server multiplies mass by (1 - 0.002) once per second
+   * (0.2 %/s, only above DECAY_MIN_MASS). Expressed as a continuous rate so it is
+   * applied smoothly every step with the same result per second.
+   */
+  DECAY_RATE: -Math.log(1 - 0.002),
   DECAY_MIN_MASS: 10,
 
   // --- Boost (split / eject / virus shot) ---

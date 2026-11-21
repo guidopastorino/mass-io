@@ -87,7 +87,42 @@ describe('movement', () => {
     p.targetY = c.y;
     run(w, 10);
     expect(c.mass).toBeLessThan(1000);
-    expect(c.mass).toBeGreaterThan(950);
+    expect(c.mass).toBeCloseTo(1000 * 0.998 ** 10, 1);
+  });
+
+  it('loses 0.2 % per second, like the reference server (~11 % per idle minute)', () => {
+    const w = emptyWorld();
+    const p = w.addPlayer({ name: 'a' });
+    const c = w.spawnPlayer(p, 1000, { x: 5000, y: 5000 });
+    p.targetX = c.x;
+    p.targetY = c.y;
+    run(w, 60);
+    expect(c.mass).toBeCloseTo(1000 * 0.998 ** 60, 0); // ≈ 887
+  });
+
+  it('splitting does not make you lose mass faster', () => {
+    const whole = emptyWorld();
+    const split = emptyWorld();
+    const a = whole.addPlayer({ name: 'a' });
+    const b = split.addPlayer({ name: 'b' });
+    whole.spawnPlayer(a, 1000, { x: 5000, y: 5000 });
+    split.spawnPlayer(b, 1000, { x: 5000, y: 5000 });
+    a.targetX = a.targetY = b.targetX = b.targetY = 5000;
+    split.requestSplit(b, 3); // 8 pieces
+    run(whole, 20);
+    run(split, 20);
+    expect(b.cells.length).toBeGreaterThan(1);
+    expect(split.totalMass(b)).toBeCloseTo(whole.totalMass(a), 0);
+  });
+
+  it('never decays below the minimum mass', () => {
+    const w = emptyWorld();
+    const p = w.addPlayer({ name: 'a' });
+    const c = w.spawnPlayer(p, 12, { x: 5000, y: 5000 });
+    p.targetX = c.x;
+    p.targetY = c.y;
+    run(w, 600);
+    expect(c.mass).toBe(10);
   });
 });
 
