@@ -29,6 +29,11 @@ export function Hud({ snap, hud }: { snap: HudSnapshot | null; hud: HudSettings 
           Puntuación: {snap.mass}
         </div>
       )}
+      {snap.mode === 'bots' && snap.minionCap > 0 && (
+        <div className="hud-box minions" data-testid="minions">
+          Tus bots: {snap.minions}/{snap.minionCap}
+        </div>
+      )}
       {snap.alive && hud.stats && (
         <div className="hud-box stats" data-testid="live-stats">
           Células: {snap.cells}/16 · Puesto: {snap.rank} · Jugadores: {snap.players}

@@ -354,6 +354,26 @@ export class Renderer {
     const vh = (H / cam.zoom) * s;
     ctx.strokeStyle = 'rgba(255,255,255,0.6)';
     ctx.strokeRect(x0 + cam.x * s - vw / 2, y0 + cam.y * s - vh / 2, vw, vh);
+    // My minions (bots mode): ringed dots so they're easy to find.
+    if (me) {
+      for (const p of world.players) {
+        if (p.master !== me || !p.alive) continue;
+        for (const c of p.cells) {
+          const mx = x0 + c.x * s;
+          const my = y0 + c.y * s;
+          const mr = Math.max(2.5, c.radius * s);
+          ctx.fillStyle = c.color;
+          ctx.beginPath();
+          ctx.arc(mx, my, mr, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.arc(mx, my, mr + 2, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+    }
     if (me?.alive) {
       for (const c of me.cells) {
         ctx.fillStyle = c.color;

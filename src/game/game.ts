@@ -1,6 +1,7 @@
 import { BotController } from '../engine/bots';
 import { Camera, type CameraCell } from '../engine/camera';
 import { PHYSICS, type GameMode } from '../engine/constants';
+import { MinionController } from '../engine/minions';
 import type { SkinId } from '../engine/skins';
 import type { LeaderboardEntry, Player, PlayerStats } from '../engine/types';
 import { World } from '../engine/world';
@@ -18,6 +19,9 @@ export interface HudSnapshot {
   myId: number;
   players: number;
   mode: GameMode;
+  /** Bots mode: live minions of the human / cap (0 / 0 in other modes). */
+  minions: number;
+  minionCap: number;
 }
 
 export interface DeathInfo {
@@ -43,6 +47,9 @@ export interface SpawnOptions {
   name: string;
   skin: SkinId | null;
   color: string;
+  /** Bots mode: look of the player's minions. */
+  minionName?: string;
+  minionSkin?: SkinId | null;
 }
 
 /**
@@ -52,6 +59,8 @@ export interface SpawnOptions {
 export class Game {
   world!: World;
   bots!: BotController;
+  /** Present only in bots mode. */
+  minions: MinionController | null = null;
   readonly camera = new Camera();
   readonly renderer: Renderer;
   me: Player | null = null;
@@ -87,6 +96,7 @@ export class Game {
     this.world = new World({ mode: opts.mode, seed: opts.seed });
     this.world.recordEaten = true;
     this.bots = new BotController(this.world);
+    this.minions = opts.mode === 'bots' ? new MinionController(this.world) : null;
     this.world.populate();
     this.bots.addBots(opts.botCount);
     // Let the world settle so the backdrop is lively from the first frame.
@@ -107,6 +117,11 @@ export class Game {
       this.me.color = opts.color;
     }
     w.spawnPlayer(this.me, PHYSICS.PLAYER_START_MASS);
+    this.minions?.configure(this.me, {
+      name: opts.minionName?.trim() || `${opts.name || 'Mini'} bot`,
+      skin: opts.minionSkin ?? null,
+      color: opts.color,
+    });
     this.camera.reset();
   }
 
@@ -181,8 +196,10 @@ export class Game {
       alive: !!me?.alive,
       leaderboard: w.leaderboard,
       myId: me?.id ?? -1,
-      players: w.players.filter((p) => p.alive).length,
+      players: w.players.filter((p) => p.alive && !p.master).length,
       mode: w.mode,
+      minions: me && this.minions ? this.minions.aliveMinions(me) : 0,
+      minionCap: this.minions ? this.minions.perPlayer : 0,
     };
   }
 
@@ -305,6 +322,15 @@ export class Game {
         break;
       case 'eject':
         me.ejecting = true;
+        break;
+      case 'minionSplit':
+        if (!repeat) this.minions?.requestSplit(me, 1);
+        break;
+      case 'minionDoubleSplit':
+        if (!repeat) this.minions?.requestSplit(me, 2);
+        break;
+      case 'minionMaxSplit':
+        if (!repeat) this.minions?.requestSplit(me, 4);
         break;
     }
   }

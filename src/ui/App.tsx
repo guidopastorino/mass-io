@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Game, type DeathInfo, type HudSnapshot } from '../game/game';
+import type { Settings } from '../game/settings';
 import { DeathScreen } from './DeathScreen';
 import { Hud } from './Hud';
 import { Menu } from './Menu';
@@ -13,6 +14,14 @@ declare global {
     __massio?: Game;
   }
 }
+
+const spawnOptions = (s: Settings) => ({
+  name: s.nickname.trim(),
+  skin: s.skin,
+  color: s.color,
+  minionName: s.minionName,
+  minionSkin: s.minionSkin,
+});
 
 export function App() {
   const { settings, update, ref } = useSettings();
@@ -61,7 +70,7 @@ export function App() {
       game.newSession({ mode: s.mode, botCount: s.botCount });
       sessionRef.current = { mode: s.mode, bots: s.botCount };
     }
-    game.spawn({ name: s.nickname.trim(), skin: s.skin, color: s.color });
+    game.spawn(spawnOptions(s));
     setDeath(null);
     setScreen('playing');
     canvasRef.current?.focus();
@@ -72,7 +81,7 @@ export function App() {
     if (!game) return;
     const s = ref.current;
     if (sessionRef.current?.mode !== s.mode) return play();
-    game.spawn({ name: s.nickname.trim(), skin: s.skin, color: s.color });
+    game.spawn(spawnOptions(s));
     setDeath(null);
     setScreen('playing');
   }, [play, ref]);

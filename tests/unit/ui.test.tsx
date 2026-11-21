@@ -41,6 +41,23 @@ describe('menu', () => {
     expect(onPlay).toHaveBeenCalled();
   });
 
+  it('bots mode shows minion name and skin pickers', () => {
+    const update = vi.fn();
+    const { rerender } = render(
+      <Menu settings={DEFAULT_SETTINGS} update={update} onPlay={() => {}} onSettings={() => {}} canContinue={false} onContinue={() => {}} />,
+    );
+    expect(screen.queryByTestId('minion-setup')).toBeNull();
+    fireEvent.click(screen.getByTestId('mode-bots'));
+    expect(update).toHaveBeenCalledWith({ mode: 'bots' });
+    rerender(
+      <Menu settings={{ ...DEFAULT_SETTINGS, mode: 'bots' }} update={update} onPlay={() => {}} onSettings={() => {}} canContinue={false} onContinue={() => {}} />,
+    );
+    fireEvent.change(screen.getByTestId('minion-name'), { target: { value: 'Pepe' } });
+    expect(update).toHaveBeenCalledWith({ minionName: 'Pepe' });
+    fireEvent.click(screen.getByTestId('minion-skin-lava'));
+    expect(update).toHaveBeenCalledWith({ minionSkin: 'lava' });
+  });
+
   it('shows Continue while alive', () => {
     const onContinue = vi.fn();
     render(
@@ -78,6 +95,7 @@ describe('settings panel', () => {
 describe('hud and death screen', () => {
   const snap = {
     fps: 60, ping: 1.2, mass: 321, cells: 2, rank: 3, alive: true, myId: 7, players: 30, mode: 'ffa' as const,
+    minions: 0, minionCap: 0,
     leaderboard: [{ id: 1, name: 'A', mass: 900, isHuman: false }, { id: 7, name: 'Me', mass: 321, isHuman: true }],
   };
 
@@ -90,6 +108,13 @@ describe('hud and death screen', () => {
     expect(screen.queryByTestId('fps')).toBeNull();
     expect(screen.queryByTestId('leaderboard')).toBeNull();
     expect(screen.queryByTestId('score')).toBeNull();
+  });
+
+  it('shows the minion counter only in bots mode', () => {
+    const { rerender } = render(<Hud snap={snap} hud={DEFAULT_SETTINGS.hud} />);
+    expect(screen.queryByTestId('minions')).toBeNull();
+    rerender(<Hud snap={{ ...snap, mode: 'bots', minions: 2, minionCap: 3 }} hud={DEFAULT_SETTINGS.hud} />);
+    expect(screen.getByTestId('minions').textContent).toContain('2/3');
   });
 
   it('shows death stats and replays', () => {
