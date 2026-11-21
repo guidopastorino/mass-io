@@ -61,8 +61,10 @@ export const PHYSICS = {
   // --- Eject (W) ---
   EJECT_MASS: 13,
   EJECT_MASS_LOSS: 18,
-  EJECT_COOLDOWN: 0.1,
-  EJECT_SPREAD: 0.3,
+  /** Seconds between ejects while W is held (~12 per second at 60 Hz). */
+  EJECT_COOLDOWN: 0.08,
+  /** Max random deviation (rad) from the cursor direction: blobs fly in a near-straight line. */
+  EJECT_SPREAD: 0.03,
 
   // --- Food ---
   FOOD_MIN_MASS: 1,

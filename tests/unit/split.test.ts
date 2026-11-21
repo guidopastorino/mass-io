@@ -96,6 +96,23 @@ describe('split', () => {
   });
 });
 
+describe('ejected blobs', () => {
+  it('push each other apart instead of stacking', () => {
+    const w = emptyWorld();
+    const a = w.createEntity('eject', 3000, 3000, PHYSICS.EJECT_MASS, '#fff');
+    const b = w.createEntity('eject', 3005, 3000, PHYSICS.EJECT_MASS, '#fff');
+    run(w, 1);
+    const d = Math.hypot(a.x - b.x, a.y - b.y);
+    expect(d).toBeGreaterThan(a.radius + b.radius - 1);
+    // gradual, not a one-step snap
+    const w2 = emptyWorld();
+    const c = w2.createEntity('eject', 3000, 3000, PHYSICS.EJECT_MASS, '#fff');
+    w2.createEntity('eject', 3005, 3000, PHYSICS.EJECT_MASS, '#fff');
+    w2.step(1 / 60);
+    expect(Math.abs(c.x - 3000)).toBeLessThan(15);
+  });
+});
+
 describe('smooth movement', () => {
   it('eases to a stop near the cursor instead of snapping', () => {
     const { w, p, c } = setup(100);
@@ -147,8 +164,38 @@ describe('eject', () => {
     p.ejecting = true;
     run(w, 1);
     const n = w.entities.filter((e) => e.kind === 'eject').length;
-    expect(n).toBeGreaterThanOrEqual(9);
-    expect(n).toBeLessThanOrEqual(11);
+    expect(n).toBeGreaterThanOrEqual(11);
+    expect(n).toBeLessThanOrEqual(13);
+  });
+
+  it('a held W fires a tight, evenly spaced line toward the cursor', () => {
+    const { w, p, c } = setup(3000);
+    p.targetX = 9000;
+    p.targetY = 5000;
+    p.ejecting = true;
+    const times: number[] = [];
+    let seen = 0;
+    for (let i = 0; i < 60; i++) {
+      w.step(1 / 60);
+      c.x = c.px = 5000; // hold the cell still to measure the stream
+      c.y = c.py = 5000;
+      const n = w.entities.filter((e) => e.kind === 'eject').length;
+      if (n > seen) times.push(w.time);
+      seen = n;
+    }
+    const blobs = w.entities.filter((e) => e.kind === 'eject');
+    // every blob within a few degrees of the cursor direction, and close to the center line
+    for (const b of blobs) {
+      expect(Math.abs(Math.atan2(b.bdy, b.bdx))).toBeLessThanOrEqual(PHYSICS.EJECT_SPREAD + 1e-9);
+      // blobs still in flight form a straight line (ones that stopped spread out gently)
+      if (b.boost < 150) continue;
+      const along = b.x - 5000;
+      expect(Math.abs(b.y - 5000)).toBeLessThanOrEqual(Math.tan(PHYSICS.EJECT_SPREAD) * along + 1);
+      expect(Math.abs(b.y - 5000)).toBeLessThan(45);
+    }
+    // constant cadence: identical gaps between shots
+    const gaps = times.slice(1).map((t, i) => t - times[i]);
+    expect(Math.max(...gaps) - Math.min(...gaps)).toBeLessThan(1e-6);
   });
 
   it('cannot eject below the minimum mass', () => {

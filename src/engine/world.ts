@@ -326,6 +326,7 @@ export class World {
     this.resolveSiblingCollisions(dt);
     this.applyBorders();
     this.rebuildGrid();
+    this.separateEjects(dt);
     this.resolveEating();
     this.decay(dt);
     this.updateSpecial(dt);
@@ -409,6 +410,35 @@ export class World {
           b.y += ny * pb;
         }
       }
+    }
+  }
+
+  /**
+   * Ejected blobs softly push each other apart, so a held W lays out a clean line of
+   * blobs instead of stacking them where they stop.
+   */
+  private separateEjects(dt: number) {
+    const soft = smoothing(PHYSICS.RIGID_RATE, dt);
+    for (const a of this.entities) {
+      if (a.kind !== 'eject' || a.removed) continue;
+      this.grid.query(a.x, a.y, a.radius * 2, (b) => {
+        if (b.kind !== 'eject' || b.id <= a.id || b.removed) return;
+        let dx = b.x - a.x;
+        let dy = b.y - a.y;
+        let d = Math.sqrt(dx * dx + dy * dy);
+        const overlap = a.radius + b.radius - d;
+        if (overlap <= 0) return;
+        if (d < 0.001) {
+          dx = 1;
+          dy = 0;
+          d = 1;
+        }
+        const k = (overlap * soft) / 2;
+        a.x -= (dx / d) * k;
+        a.y -= (dy / d) * k;
+        b.x += (dx / d) * k;
+        b.y += (dy / d) * k;
+      });
     }
   }
 
