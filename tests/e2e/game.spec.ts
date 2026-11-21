@@ -42,6 +42,8 @@ test('the player follows the mouse cursor', async ({ page }) => {
 });
 
 test('space splits, W ejects, and the camera keeps all cells on screen', async ({ page }) => {
+  // No bots, so nothing can eat the split pieces during the test.
+  await page.evaluate(() => localStorage.setItem('mass-io:settings', JSON.stringify({ botCount: 0 })));
   await play(page);
   await game(page, 'g.world.setMass(g.me.cells[0], 800);');
   await page.mouse.move(1100, 300);
@@ -49,7 +51,8 @@ test('space splits, W ejects, and the camera keeps all cells on screen', async (
   await page.waitForTimeout(150);
   await page.keyboard.press('Space');
   await page.waitForTimeout(1500);
-  expect(await game<number>(page, 'return g.me.cells.length;')).toBe(4);
+  // 4 from two splits (more only if a piece popped on a virus).
+  expect(await game<number>(page, 'return g.me.cells.length;')).toBeGreaterThanOrEqual(4);
   const allVisible = await game<boolean>(
     page,
     `const W = g.canvas.clientWidth, H = g.canvas.clientHeight;
