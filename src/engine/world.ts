@@ -4,6 +4,7 @@ import {
   boostStep,
   canEatByMass,
   clamp,
+  smoothing,
   eatDistance,
   massToRadius,
   recombineTime,
@@ -42,6 +43,10 @@ export class World {
   leaderboard: LeaderboardEntry[] = [];
   /** Hooks run at the start of every step (bot AI). */
   readonly beforeStep: StepHook[] = [];
+  /** Absorptions since the last drain, so the renderer can animate prey being swallowed. */
+  eaten: { prey: Entity; pred: Entity }[] = [];
+  /** Only a renderer needs absorption records; headless simulations skip them. */
+  recordEaten = false;
 
   foodCount = 0;
   virusCount = 0;
@@ -311,7 +316,7 @@ export class World {
     }
 
     this.moveEntities(dt);
-    this.resolveSiblingCollisions();
+    this.resolveSiblingCollisions(dt);
     this.applyBorders();
     this.rebuildGrid();
     this.resolveEating();
@@ -345,7 +350,10 @@ export class World {
         const dy = p.targetY - e.y;
         const d = Math.sqrt(dx * dx + dy * dy);
         if (d > 0.01) {
-          const move = Math.min(d, speedForRadius(e.radius) * dt);
+          // Full speed while the cursor is outside the cell; eases in linearly as the
+          // cursor gets closer than one radius, so the cell glides to a stop instead of snapping.
+          const ease = Math.min(1, d / Math.max(e.radius, PHYSICS.MOVE_EASE_MIN));
+          const move = Math.min(d, speedForRadius(e.radius) * ease * dt);
           e.x += (dx / d) * move;
           e.y += (dy / d) * move;
         }
@@ -353,9 +361,15 @@ export class World {
     }
   }
 
-  /** Sibling cells that cannot merge yet push each other apart (mass-weighted). */
-  private resolveSiblingCollisions() {
+  /**
+   * Sibling cells that cannot merge yet push each other apart (mass-weighted).
+   * The correction is soft (a fraction of the overlap per step, frame-rate independent)
+   * and fades in over SPLIT_NO_COLLIDE after a split, so pieces glide apart instead of
+   * being shoved the instant the no-collision window ends.
+   */
+  private resolveSiblingCollisions(dt: number) {
     const nc = PHYSICS.SPLIT_NO_COLLIDE;
+    const soft = smoothing(PHYSICS.RIGID_RATE, dt);
     for (const p of this.players) {
       const cells = p.cells;
       for (let i = 0; i < cells.length; i++) {
@@ -363,7 +377,9 @@ export class World {
         for (let j = i + 1; j < cells.length; j++) {
           const b = cells[j];
           if (this.time >= a.mergeAt && this.time >= b.mergeAt) continue;
-          if ((a.boost > 0 && this.time - a.born < nc) || (b.boost > 0 && this.time - b.born < nc)) continue;
+          const youngest = this.time - Math.max(a.born, b.born);
+          const ramp = youngest >= nc ? 1 : (youngest / nc) ** 2;
+          if (ramp <= 0) continue;
           let dx = b.x - a.x;
           let dy = b.y - a.y;
           let d = Math.sqrt(dx * dx + dy * dy);
@@ -377,8 +393,9 @@ export class World {
           const nx = dx / d;
           const ny = dy / d;
           const total = a.mass + b.mass;
-          const pa = overlap * (b.mass / total);
-          const pb = overlap * (a.mass / total);
+          const k = overlap * soft * ramp;
+          const pa = k * (b.mass / total);
+          const pb = k * (a.mass / total);
           a.x -= nx * pa;
           a.y -= ny * pa;
           b.x += nx * pb;
@@ -592,6 +609,7 @@ export class World {
   }
 
   absorb(pred: Entity, prey: Entity) {
+    if (this.recordEaten) this.eaten.push({ prey, pred });
     this.setMass(pred, pred.mass + prey.mass);
     if (pred.owner) pred.owner.stats.massEaten += prey.mass;
     this.remove(prey);
@@ -676,6 +694,12 @@ export class World {
     if (!p.alive) return 0;
     const m = this.totalMass(p);
     return 1 + this.players.filter((q) => q.alive && q !== p && this.totalMass(q) > m).length;
+  }
+
+  drainEaten() {
+    const list = this.eaten;
+    this.eaten = [];
+    return list;
   }
 
   drainEvents() {

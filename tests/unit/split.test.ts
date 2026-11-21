@@ -52,7 +52,25 @@ describe('split', () => {
     run(w, 3);
     const [a, b] = p.cells;
     const d = Math.hypot(a.x - b.x, a.y - b.y);
-    expect(d).toBeGreaterThanOrEqual(a.radius + b.radius - 1);
+    // Soft contact: pressed together toward the same cursor they overlap only slightly.
+    expect(d).toBeGreaterThan((a.radius + b.radius) * 0.9);
+  });
+
+  it('sibling separation is gradual, never a one-step snap', () => {
+    const { w, p } = setup(400);
+    w.requestSplit(p);
+    p.targetX = 5000;
+    p.targetY = 5000;
+    let maxJump = 0;
+    let prev = { x: 0, y: 0 };
+    for (let i = 0; i < 180; i++) {
+      w.step(1 / 60);
+      const c = p.cells[0];
+      if (i > 0) maxJump = Math.max(maxJump, Math.hypot(c.x - prev.x, c.y - prev.y));
+      prev = { x: c.x, y: c.y };
+    }
+    // a hard correction would teleport the parent by tens of units in a single tick
+    expect(maxJump).toBeLessThan(15);
   });
 
   it('cells recombine after the merge timer elapses', () => {
@@ -75,6 +93,36 @@ describe('split', () => {
     small.w.step(1 / 60);
     big.w.step(1 / 60);
     expect(big.p.cells[1].mergeAt).toBeGreaterThan(small.p.cells[1].mergeAt + 40);
+  });
+});
+
+describe('smooth movement', () => {
+  it('eases to a stop near the cursor instead of snapping', () => {
+    const { w, p, c } = setup(100);
+    p.targetX = 5000 + c.radius * 0.5;
+    p.targetY = 5000;
+    w.step(1 / 60);
+    const nearStep = c.x - 5000;
+    const { w: w2, p: p2, c: c2 } = setup(100);
+    p2.targetX = 6000;
+    w2.step(1 / 60);
+    // inside one radius the cell moves at a fraction of full speed
+    expect(nearStep).toBeLessThan((c2.x - 5000) * 0.6);
+    expect(nearStep).toBeGreaterThan(0);
+  });
+
+  it('absorptions are recorded for the renderer only when enabled', () => {
+    const { w, p } = setup(100);
+    p.targetX = 5000;
+    w.spawnFood(5000, 5000, 1);
+    w.step(1 / 60);
+    expect(w.drainEaten()).toHaveLength(0);
+    w.recordEaten = true;
+    w.spawnFood(5000, 5000, 1);
+    w.step(1 / 60);
+    const eaten = w.drainEaten();
+    expect(eaten).toHaveLength(1);
+    expect(eaten[0].pred).toBe(p.cells[0]);
   });
 });
 
