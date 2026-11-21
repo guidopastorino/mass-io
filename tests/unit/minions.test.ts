@@ -10,7 +10,8 @@ function botsWorld() {
   const w = emptyWorld('bots');
   const ctl = new MinionController(w);
   const me = w.addPlayer({ name: 'me' });
-  w.spawnPlayer(me, 1000, { x: 5000, y: 5000 });
+  // Same mass as a minion, so the master can't swallow minions converging on its cursor.
+  w.spawnPlayer(me, PHYSICS.MINION_START_MASS, { x: 5000, y: 5000 });
   me.targetX = 5000;
   me.targetY = 5000;
   return { w, ctl, me };
@@ -71,6 +72,9 @@ describe('bots mode', () => {
     run(w, 1 + PHYSICS.MINION_SPAWN_INTERVAL * 2 + 0.1);
     const minions = ctl.minionsOf(me).filter((m) => m.alive);
     expect(minions).toHaveLength(3);
+    // keep the master away from its now-huge minions so it isn't eaten
+    me.cells[0].x = me.cells[0].px = 1000;
+    me.cells[0].y = me.cells[0].py = 1000;
     for (const m of minions) w.setMass(m.cells[0], 2000);
     ctl.requestSplit(me, 1);
     run(w, 0.1);
@@ -95,7 +99,8 @@ describe('bots mode', () => {
     me.targetY = c.y;
     run(w, 0.1);
     expect(m.stats.foodEaten).toBe(1);
-    // master (1000) swallows its own minion (100)
+    // a big master swallows its own minion
+    w.setMass(me.cells[0], 1000);
     me.cells[0].x = c.x;
     me.cells[0].y = c.y;
     w.step(1 / 60);
@@ -108,13 +113,11 @@ describe('bots mode', () => {
     run(w, 1 + PHYSICS.MINION_SPAWN_INTERVAL * 3);
     expect(ctl.aliveMinions(me)).toBe(3);
     const victim = ctl.minionsOf(me)[0];
-    const killer = w.addPlayer({ name: 'k' });
-    w.spawnPlayer(killer, 3000, { x: victim.cells[0].x, y: victim.cells[0].y });
-    killer.targetX = killer.cells[0].x;
-    killer.targetY = killer.cells[0].y;
+    // remove only this minion's cells (as if eaten far from the others)
+    const sink = w.createEntity('spawner', 0, 0, 1, '#000');
+    for (const c of [...victim.cells]) w.absorb(sink, c);
     w.step(1 / 60);
     expect(victim.alive).toBe(false);
-    w.removePlayer(killer);
     run(w, 1);
     expect(ctl.aliveMinions(me)).toBe(2);
     run(w, PHYSICS.MINION_SPAWN_INTERVAL);
@@ -140,6 +143,53 @@ describe('bots mode', () => {
     w.updateLeaderboard();
     expect(w.leaderboard.map((e) => e.name)).toEqual(['me']);
     expect(w.rankOf(me)).toBe(1);
+  });
+
+  it('minions spawn close to their master, never on top of it', () => {
+    const w = emptyWorld('bots');
+    const ctl = new MinionController(w);
+    const me = w.addPlayer({ name: 'me' });
+    w.spawnPlayer(me, 1000, { x: 5000, y: 5000 });
+    me.targetX = 9000; // master keeps moving; minions still appear around it
+    me.targetY = 5000;
+    const seen = new Set<number>();
+    let spawns = 0;
+    for (let t = 0; t < 60 * 14 && spawns < 3; t++) {
+      w.step(1 / 60);
+      for (const m of ctl.minionsOf(me)) {
+        const key = m.id * 1000 + Math.round(m.stats.spawnedAt * 60);
+        if (!m.alive || seen.has(key)) continue;
+        seen.add(key);
+        spawns++;
+        // measured on the tick it appeared
+        const c = m.cells[0];
+        const cell = me.cells[0];
+        const gap = Math.hypot(c.x - cell.x, c.y - cell.y) - cell.radius - c.radius;
+        expect(gap).toBeGreaterThan(30);
+        expect(gap).toBeLessThan(PHYSICS.MINION_SPAWN_GAP_MAX + 150);
+      }
+    }
+    expect(spawns).toBe(3);
+  });
+
+  it('feed key makes minions eject mass at their master', () => {
+    const { w, ctl, me } = botsWorld();
+    run(w, 1.1);
+    const m = ctl.minionsOf(me)[0];
+    w.setMass(m.cells[0], 300);
+    // cursor far from the master: minions head there but still aim the feed at the master
+    me.targetX = me.cells[0].x;
+    me.targetY = me.cells[0].y - 3000;
+    const before = me.cells[0].mass;
+    me.minionEjecting = true;
+    run(w, 1.5);
+    me.minionEjecting = false;
+    run(w, 1.5);
+    expect(m.ejectAt).toBeNull();
+    expect(m.ejecting).toBe(false);
+    // the minion gave its mass away (or was finally eaten by the master it fed)
+    expect(!m.alive || m.cells[0].mass < 150).toBe(true);
+    expect(w.totalMass(me)).toBeGreaterThan(before + 100);
   });
 
   it('every AI player gets minions and uses them in a full match', () => {

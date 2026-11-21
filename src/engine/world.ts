@@ -190,6 +190,8 @@ export class World {
       killedBy: null,
       master: opts.master ?? null,
       minionSplitQueue: 0,
+      minionEjecting: false,
+      ejectAt: null,
     };
     this.players.push(p);
     return p;
@@ -289,7 +291,8 @@ export class World {
   private processEject(p: Player) {
     for (const c of [...p.cells]) {
       if (c.mass < PHYSICS.MIN_EJECT_MASS) continue;
-      const angle = this.aimAngle(p, c) + (this.rng() * 2 - 1) * PHYSICS.EJECT_SPREAD;
+      const base = p.ejectAt ? Math.atan2(p.ejectAt.y - c.y, p.ejectAt.x - c.x) : this.aimAngle(p, c);
+      const angle = base + (this.rng() * 2 - 1) * PHYSICS.EJECT_SPREAD;
       this.setMass(c, c.mass - PHYSICS.EJECT_MASS_LOSS);
       const dx = Math.cos(angle);
       const dy = Math.sin(angle);

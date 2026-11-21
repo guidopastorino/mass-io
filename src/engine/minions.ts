@@ -1,6 +1,7 @@
 import { PHYSICS } from './constants';
+import { canEatByMass, massToRadius } from './math';
 import type { SkinId } from './skins';
-import type { Player } from './types';
+import type { Entity, Player } from './types';
 import type { World } from './world';
 
 export interface MinionLook {
@@ -74,16 +75,29 @@ export class MinionController {
       if (master.master) continue;
       const squad = this.squadOf(master);
 
-      // Steer every live minion toward the master's cursor and apply queued splits.
+      // Steer every live minion toward the master's cursor, apply queued splits and,
+      // while the feed key is held, eject mass at the master's nearest cell.
       const splits = master.minionSplitQueue;
       master.minionSplitQueue = 0;
+      const feeding = master.minionEjecting && master.alive;
       let alive = 0;
       for (const m of squad.minions) {
-        if (!m.alive) continue;
+        if (!m.alive) {
+          m.ejecting = false;
+          m.ejectAt = null;
+          continue;
+        }
         alive++;
         m.targetX = master.targetX;
         m.targetY = master.targetY;
         if (splits > 0) world.requestSplit(m, splits);
+        m.ejecting = feeding;
+        if (feeding) {
+          const near = nearestCell(master.cells, m.cells[0]);
+          m.ejectAt = { x: near.x, y: near.y };
+        } else {
+          m.ejectAt = null;
+        }
       }
 
       // A minion died: its replacement waits a full interval.
@@ -106,11 +120,52 @@ export class MinionController {
         minion.skin = look.skin;
         minion.color = look.color;
       }
-      world.spawnPlayer(minion, PHYSICS.MINION_START_MASS);
+      world.spawnPlayer(minion, PHYSICS.MINION_START_MASS, spawnNear(world, master, PHYSICS.MINION_START_MASS));
       minion.targetX = master.targetX;
       minion.targetY = master.targetY;
       squad.nextSpawn = world.time + this.interval;
       squad.lastAlive = alive + 1;
     }
   };
+}
+
+function nearestCell(cells: readonly Entity[], from: { x: number; y: number }) {
+  let best = cells[0];
+  let bd = Infinity;
+  for (const c of cells) {
+    const d = (c.x - from.x) ** 2 + (c.y - from.y) ** 2;
+    if (d < bd) {
+      bd = d;
+      best = c;
+    }
+  }
+  return best;
+}
+
+/**
+ * A spot close to the master: a short gap outside one of its cells, never overlapping the
+ * master (it would swallow the minion at once) nor inside any cell big enough to eat it.
+ */
+export function spawnNear(world: World, master: Player, mass: number) {
+  const r = massToRadius(mass);
+  const margin = r + 20;
+  let fallback: { x: number; y: number } | null = null;
+  for (let attempt = 0; attempt < 16; attempt++) {
+    const anchor = master.cells[Math.floor(world.rng() * master.cells.length)];
+    const angle = world.rng() * Math.PI * 2;
+    const gap = PHYSICS.MINION_SPAWN_GAP_MIN + world.rng() * (PHYSICS.MINION_SPAWN_GAP_MAX - PHYSICS.MINION_SPAWN_GAP_MIN);
+    const d = anchor.radius + r + gap;
+    const x = Math.min(world.mapSize - margin, Math.max(margin, anchor.x + Math.cos(angle) * d));
+    const y = Math.min(world.mapSize - margin, Math.max(margin, anchor.y + Math.sin(angle) * d));
+    fallback ??= { x, y };
+    const blocked = world.players.some((p) =>
+      p.cells.some((c) => {
+        const dist = Math.hypot(c.x - x, c.y - y);
+        if (p === master) return dist < c.radius + r + 40;
+        return canEatByMass(c.mass, mass) && dist < c.radius + r + 150;
+      }),
+    );
+    if (!blocked) return { x, y };
+  }
+  return fallback!;
 }

@@ -70,6 +70,10 @@ export interface Player {
   master: Player | null;
   /** Bots mode: pending split actions to apply to this player's minions. */
   minionSplitQueue: number;
+  /** Bots mode: master is holding the "feed" key; its minions eject mass toward it. */
+  minionEjecting: boolean;
+  /** When set, ejected mass is aimed at this point instead of the cursor target. */
+  ejectAt: { x: number; y: number } | null;
 }
 
 export interface LeaderboardEntry {
