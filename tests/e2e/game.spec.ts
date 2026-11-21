@@ -20,7 +20,17 @@ test('menu shows modes, skins and starts a FFA game', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByTestId('menu')).toBeVisible();
   await expect(page.getByTestId('mode-ffa')).toHaveAttribute('aria-checked', 'true');
-  for (const s of ['none', 'earth', 'moon', 'mars']) await expect(page.getByTestId(`skin-${s}`)).toBeVisible();
+  for (const s of ['none', 'earth', 'moon', 'mars', 'sun', 'jupiter', 'neptune', 'lava', 'galaxy']) {
+    await expect(page.getByTestId(`skin-${s}`)).toBeVisible();
+  }
+  // every skin preview is actually painted (non-empty data URL)
+  const urls = await page.locator('.skin[data-testid^=skin-]:not([data-testid=skin-none])').evaluateAll((els) =>
+    els.map((e) => getComputedStyle(e).backgroundImage.length),
+  );
+  expect(urls).toHaveLength(8);
+  for (const len of urls) expect(len).toBeGreaterThan(1000);
+  await page.getByTestId('skin-galaxy').click();
+  await expect(page.getByTestId('skin-galaxy')).toHaveClass(/active/);
   await page.getByTestId('skin-moon').click();
   await play(page, 'Moonie');
   // the human starts every life with 1000 mass (± decay / a pellet eaten on spawn)

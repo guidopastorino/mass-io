@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SKINS, SKIN_LABELS } from '../../src/engine/skins';
 import { DEFAULT_SETTINGS, STORAGE_KEY, keyLabel, loadSettings, sanitizeSettings, saveSettings } from '../../src/game/settings';
 
 function memoryStorage() {
@@ -34,7 +35,7 @@ describe('settings', () => {
     const s = sanitizeSettings({
       theme: 'neon',
       mode: 'battle',
-      skin: 'jupiter',
+      skin: 'pluto',
       color: 'red',
       sensitivity: 99,
       botCount: -4,
@@ -53,6 +54,14 @@ describe('settings', () => {
     expect(s.keys.eject).toBe('KeyE');
     expect(s.hud.fps).toBe(true);
     expect(s.hud.grid).toBe(false);
+  });
+
+  it('accepts every built-in skin and has a label for each', () => {
+    expect(SKINS).toHaveLength(8);
+    for (const id of SKINS) {
+      expect(sanitizeSettings({ skin: id }).skin).toBe(id);
+      expect(SKIN_LABELS[id]).toBeTruthy();
+    }
   });
 
   it('labels keys for display', () => {
