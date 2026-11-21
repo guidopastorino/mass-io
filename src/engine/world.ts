@@ -476,11 +476,117 @@ export class World {
     }
   }
 
-  /** Overridden by special mechanics (viruses / spawners); see updateSpecial. */
-  protected virusEats(_virus: Entity, _prey: Entity) {}
-  protected spawnerEats(_spawner: Entity, _prey: Entity) {}
-  protected popCell(_cell: Entity) {}
-  protected updateSpecial(_dt: number) {}
+  // ---------------------------------------------------------------- viruses
+
+  /** A virus swallows ejected mass. FFA: grows and shoots a new virus. Experimental: gets pushed. */
+  private virusEats(virus: Entity, prey: Entity) {
+    if (prey.kind !== 'eject') return;
+    const angle = feedAngle(prey, virus);
+    this.remove(prey);
+    if (this.mode === 'experimental') {
+      // Accumulate push along the feed direction (vector sum keeps momentum coherent).
+      const vx = virus.bdx * virus.boost + Math.cos(angle) * PHYSICS.VIRUS_PUSH;
+      const vy = virus.bdy * virus.boost + Math.sin(angle) * PHYSICS.VIRUS_PUSH;
+      const len = Math.hypot(vx, vy);
+      if (len > 0) {
+        virus.bdx = vx / len;
+        virus.bdy = vy / len;
+        virus.boost = Math.min(len, PHYSICS.VIRUS_SHOT_BOOST);
+      }
+      return;
+    }
+    this.setMass(virus, virus.mass + prey.mass);
+    virus.feed++;
+    if (virus.feed >= PHYSICS.VIRUS_FEED_SHOTS) {
+      virus.feed = 0;
+      this.setMass(virus, PHYSICS.VIRUS_MASS);
+      if (this.virusCount < this.virusMax) {
+        const shot = this.createEntity('virus', virus.x, virus.y, PHYSICS.VIRUS_MASS, virus.color);
+        this.setBoost(shot, angle, PHYSICS.VIRUS_SHOT_BOOST);
+      }
+    }
+  }
+
+  /**
+   * A cell that swallowed a virus explodes into many pieces (up to MAX_CELLS).
+   * Piece distribution follows the reference algorithm: halves of the remaining
+   * mass, falling back to equal small pieces when mass runs short.
+   */
+  popCell(cell: Entity) {
+    const p = cell.owner!;
+    let cellsLeft = PHYSICS.MAX_CELLS - p.cells.length;
+    if (cellsLeft <= 0) return;
+    const splitMin = PHYSICS.MIN_SPLIT_MASS;
+    const cellMass = cell.mass;
+    const splits: number[] = [];
+    if (cellMass / cellsLeft < splitMin) {
+      let count = 2;
+      let mass = cellMass / count;
+      while (mass > splitMin && count * 2 < cellsLeft) {
+        count *= 2;
+        mass = cellMass / count;
+      }
+      mass = cellMass / (count + 1);
+      while (count-- > 0) splits.push(mass);
+    } else {
+      let massLeft = cellMass / 2;
+      let mass = cellMass / 2;
+      while (cellsLeft-- > 0) {
+        // cellsLeft was already decremented for this iteration: +1 pieces remain.
+        if (massLeft / (cellsLeft + 1) < splitMin) {
+          mass = massLeft / (cellsLeft + 1);
+          for (let i = 0; i <= cellsLeft; i++) splits.push(mass);
+          break;
+        }
+        while (mass >= massLeft && cellsLeft > 0) mass /= 2;
+        splits.push(mass);
+        massLeft -= mass;
+      }
+    }
+    for (const m of splits) {
+      if (cell.mass - m < 1) break;
+      this.splitCell(cell, this.rng() * Math.PI * 2, m);
+    }
+  }
+
+  // ---------------------------------------------------------------- spawners (experimental)
+
+  /** Spawners swallow ejected mass and smaller player cells, then redistribute it as pellets. */
+  private spawnerEats(spawner: Entity, prey: Entity) {
+    if (prey.kind === 'eject') {
+      this.absorb(spawner, prey);
+    } else if (prey.kind === 'cell' && canEatByMass(spawner.mass, prey.mass)) {
+      const victim = prey.owner!;
+      this.absorb(spawner, prey);
+      if (victim.cells.length === 0) victim.killedBy = 'Spawner';
+    }
+  }
+
+  private updateSpecial(dt: number) {
+    if (this.spawnerCount === 0) return;
+    const pelletCap = this.foodTarget * 1.5 + 200;
+    for (const s of this.entities) {
+      if (s.kind !== 'spawner' || s.removed) continue;
+      // passive production at base size
+      s.acc += PHYSICS.SPAWNER_PASSIVE_RATE * dt;
+      // redistribution of absorbed mass
+      const excess = s.mass - PHYSICS.SPAWNER_MASS;
+      if (excess > 0) s.acc += PHYSICS.SPAWNER_RELEASE_RATE * dt;
+      while (s.acc >= 1) {
+        s.acc -= 1;
+        if (this.foodCount >= pelletCap) {
+          s.acc = 0;
+          break;
+        }
+        const over = s.mass - PHYSICS.SPAWNER_MASS;
+        const m = over > 0 ? Math.min(over, randRange(this.rng, 1, PHYSICS.FOOD_MAX_MASS)) : PHYSICS.FOOD_MIN_MASS;
+        if (over > 0) this.setMass(s, s.mass - m);
+        const angle = this.rng() * Math.PI * 2;
+        const f = this.spawnFood(s.x + Math.cos(angle) * s.radius, s.y + Math.sin(angle) * s.radius, m);
+        this.setBoost(f, angle, PHYSICS.SPAWNER_PELLET_BOOST * randRange(this.rng, 0.4, 1.2));
+      }
+    }
+  }
 
   absorb(pred: Entity, prey: Entity) {
     this.setMass(pred, pred.mass + prey.mass);
@@ -592,4 +698,10 @@ function emptyStats(now: number) {
     bestRank: 0,
     massEaten: 0,
   };
+}
+
+/** Direction the fed virus moves / shoots: the blob's travel direction, else blob -> virus. */
+function feedAngle(blob: Entity, virus: Entity) {
+  if (blob.boost > 0) return Math.atan2(blob.bdy, blob.bdx);
+  return Math.atan2(virus.y - blob.y, virus.x - blob.x);
 }

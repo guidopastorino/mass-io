@@ -58,7 +58,8 @@ export const PHYSICS = {
 
   // --- Viruses ---
   VIRUS_MASS: 100,
-  VIRUS_MAX_MASS: 200,
+  /** Number of ejected blobs a virus swallows before shooting a new virus. */
+  VIRUS_FEED_SHOTS: 7,
   VIRUS_MIN_COUNT: 45,
   VIRUS_MAX_COUNT: 90,
   /** Experimental: push applied to a virus per ejected blob it swallows. */
