@@ -89,23 +89,42 @@ describe('bots mode', () => {
     expect(me.cells).toHaveLength(1);
   });
 
-  it('minions eat and can be eaten like any player, including by their master', () => {
+  it('minions eat and can be eaten by other players, but never by their own squad', () => {
     const { w, ctl, me } = botsWorld();
-    run(w, 1.1);
-    const m = ctl.minionsOf(me)[0];
+    run(w, 1 + PHYSICS.MINION_SPAWN_INTERVAL + 0.1);
+    const [m, m2] = ctl.minionsOf(me);
     const c = m.cells[0];
     w.spawnFood(c.x, c.y, 1);
     me.targetX = c.x;
     me.targetY = c.y;
     run(w, 0.1);
-    expect(m.stats.foodEaten).toBe(1);
-    // a big master swallows its own minion
+    expect(m.stats.foodEaten).toBeGreaterThanOrEqual(1);
+    // a big master sits right on its minion: nothing happens
     w.setMass(me.cells[0], 1000);
     me.cells[0].x = c.x;
     me.cells[0].y = c.y;
+    // a big minion overlaps its smaller sibling: nothing happens either
+    w.setMass(m2.cells[0], 1000);
+    m2.cells[0].x = c.x;
+    m2.cells[0].y = c.y;
+    run(w, 0.2);
+    expect(m.alive).toBe(true);
+    // ...and the minion never eats its master
+    w.setMass(m.cells[0], 5000);
+    w.setMass(me.cells[0], 100);
+    run(w, 0.2);
+    expect(me.alive).toBe(true);
+    // an outsider eats the minion normally
+    const enemy = w.addPlayer({ name: 'enemy' });
+    w.setMass(m.cells[0], 100);
+    m.cells[0].x = 1000;
+    m.cells[0].y = 1000;
+    me.targetX = me.targetY = 1000;
+    w.spawnPlayer(enemy, 2000, { x: 1000, y: 1000 });
+    enemy.targetX = enemy.targetY = 1000;
     w.step(1 / 60);
     expect(m.alive).toBe(false);
-    expect(me.cells[0].mass).toBeGreaterThan(1090);
+    expect(m.killedBy).toBe('enemy');
   });
 
   it('a dead minion is replaced gradually, not instantly', () => {
@@ -187,8 +206,9 @@ describe('bots mode', () => {
     run(w, 1.5);
     expect(m.ejectAt).toBeNull();
     expect(m.ejecting).toBe(false);
-    // the minion gave its mass away (or was finally eaten by the master it fed)
-    expect(!m.alive || m.cells[0].mass < 150).toBe(true);
+    // the minion gave its mass away and is still alive (squads never eat each other)
+    expect(m.alive).toBe(true);
+    expect(m.cells[0].mass).toBeLessThan(150);
     expect(w.totalMass(me)).toBeGreaterThan(before + 100);
   });
 

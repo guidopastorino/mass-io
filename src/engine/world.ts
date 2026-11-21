@@ -496,6 +496,8 @@ export class World {
         }
         if (!canEatByMass(cell.mass, prey.mass)) return;
         const victim = prey.owner!;
+        // Bots mode: a master and its minions never eat each other (mass moves via feeding).
+        if (squadOf(p) === squadOf(victim)) return;
         this.absorb(cell, prey);
         p.stats.cellsEaten++;
         if (victim.cells.length === 0) victim.killedBy = p.name;
@@ -741,4 +743,9 @@ function emptyStats(now: number) {
 function feedAngle(blob: Entity, virus: Entity) {
   if (blob.boost > 0) return Math.atan2(blob.bdy, blob.bdx);
   return Math.atan2(virus.y - blob.y, virus.x - blob.x);
+}
+
+/** The squad leader: the master for a minion, the player itself otherwise. */
+function squadOf(p: Player) {
+  return p.master ?? p;
 }
