@@ -455,8 +455,11 @@ export class World {
         this.popCell(cell);
         break;
       case 'spawner':
+        // Behaves like a virus when eaten: grants its mass and pops the cell.
         if (!canEatByMass(cell.mass, prey.mass)) return;
         this.absorb(cell, prey);
+        p.stats.virusesEaten++;
+        this.popCell(cell);
         break;
       case 'cell': {
         if (prey.owner === p) {

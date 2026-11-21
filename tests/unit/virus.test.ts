@@ -126,7 +126,7 @@ describe('experimental mode', () => {
     expect(pelletMass).toBeGreaterThanOrEqual(13);
   });
 
-  it('spawners eat small player cells and can be eaten by big ones', () => {
+  it('spawners eat small player cells; big cells that eat one explode like with a virus', () => {
     const w = emptyWorld('experimental');
     const small = w.addPlayer({ name: 'small' });
     const big = w.addPlayer({ name: 'big' });
@@ -141,6 +141,10 @@ describe('experimental mode', () => {
     big.targetX = 2000; big.targetY = 2000;
     w.step(1 / 60);
     expect(s2.removed).toBe(true);
-    expect(bc.mass).toBeGreaterThan(1200);
+    // gains the spawner mass and explodes like with a green virus
+    expect(big.cells.length).toBe(PHYSICS.MAX_CELLS);
+    const total = big.cells.reduce((a, c) => a + c.mass, 0);
+    expect(total).toBeCloseTo(1000 + PHYSICS.SPAWNER_MASS, -1);
+    expect(bc.mass).toBeLessThan(1000);
   });
 });

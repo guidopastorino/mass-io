@@ -31,7 +31,7 @@ pnpm build
 - Split: mitad de masa con un impulso de 780 u que decae exponencialmente; máximo 16 células; recombinación en `30 s + 2,33 % de la masa`.
 - Eject: cuesta 18 de masa y lanza 13, con cooldown de 100 ms.
 - Virus: al comerlos explotás en hasta 16 piezas. En FFA, alimentarlos 7 veces dispara un virus nuevo; en Experimental, alimentarlos los empuja.
-- Experimental: spawners rojizos que producen pellets, absorben eject y células chicas y redistribuyen esa masa como pellets.
+- Experimental: spawners rojizos que producen pellets, absorben eject y células chicas y redistribuyen esa masa como pellets. Si una célula grande se come uno, gana su masa y explota igual que con un virus verde.
 - Cámara: zoom `pow(min(64/Σr, 1), 0.4)` escalado al viewport y ampliado para que todas tus células queden en pantalla; seguimiento y zoom suavizados, independientes del framerate.
 - Bots: buscan comida, cazan, huyen, hacen split-kill solo cuando es seguro, disparan virus contra amenazas, evitan bordes y virus, merodean los spawners, se reagrupan y reaparecen.
 
