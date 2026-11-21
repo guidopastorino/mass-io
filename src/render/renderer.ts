@@ -4,7 +4,20 @@ import type { SkinId } from '../engine/skins';
 import type { Entity, Player } from '../engine/types';
 import type { World } from '../engine/world';
 import type { HudSettings, Theme } from '../game/settings';
+import { MembraneSystem, pointsFor, type MembraneBody } from './membrane';
 import { getSkinCanvas } from './skins';
+
+/** Seconds a swallowed entity takes to slide into its eater. */
+const SWALLOW_TIME = 0.14;
+
+interface Dying {
+  prey: Entity;
+  pred: Entity;
+  sx: number;
+  sy: number;
+  r: number;
+  t: number;
+}
 
 export interface RenderOptions {
   theme: Theme;
@@ -25,6 +38,11 @@ export class Renderer {
   private ctx: CanvasRenderingContext2D;
   private drawList: Entity[] = [];
   private darkCache = new Map<string, string>();
+  readonly membranes = new MembraneSystem();
+  private dying: Dying[] = [];
+  private bodies: MembraneBody[] = [];
+  private obstacles: MembraneBody[] = [];
+  private bodyPool: MembraneBody[] = [];
 
   constructor(readonly canvas: HTMLCanvasElement) {
     const ctx = canvas.getContext('2d');
@@ -60,6 +78,11 @@ export class Renderer {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.fillStyle = t.bg;
     ctx.fillRect(0, 0, W, H);
+
+    for (const { prey, pred } of world.drainEaten()) {
+      if (this.dying.length > 800) this.dying.shift();
+      this.dying.push({ prey, pred, sx: prey.x, sy: prey.y, r: prey.renderRadius, t: 0 });
+    }
 
     const z = cam.zoom;
     const left = cam.x - W / 2 / z;
@@ -102,6 +125,25 @@ export class Renderer {
       list.push(e);
     }
     list.sort((a, b) => a.mass - b.mass || a.id - b.id);
+
+    // Soft-body membranes for visible cells, dented by nearby cells / viruses / spawners.
+    this.bodies.length = 0;
+    this.obstacles.length = 0;
+    let pi = 0;
+    for (const e of list) {
+      if (e.kind === 'eject') continue;
+      const b = this.bodyPool[pi] ?? (this.bodyPool[pi] = { id: 0, x: 0, y: 0, r: 0 });
+      pi++;
+      b.id = e.id;
+      b.x = ix(e, alpha);
+      b.y = iy(e, alpha);
+      b.r = e.renderRadius;
+      this.obstacles.push(b);
+      if (e.kind === 'cell') this.bodies.push(b);
+    }
+    if (opt.animations) this.membranes.update(this.bodies, this.obstacles, (b) => pointsFor(b.r * z), world.mapSize, dt);
+
+    this.drawDying(alpha, dt);
     for (const e of list) {
       const x = ix(e, alpha);
       const y = iy(e, alpha);
@@ -193,8 +235,7 @@ export class Renderer {
     const owner = e.owner!;
     const border = Math.max(3, r * 0.07);
     ctx.fillStyle = e.color;
-    ctx.beginPath();
-    ctx.arc(x, y, r - border / 2, 0, Math.PI * 2);
+    this.cellPath(e.id, x, y, r - border / 2, opt.animations);
     ctx.fill();
     const skin = opt.hud.skins && owner.skin ? getSkinCanvas(owner.skin as SkinId) : null;
     if (skin) {
@@ -235,6 +276,48 @@ export class Renderer {
       ctx.strokeText(txt, x, my);
       ctx.fillText(txt, x, my);
     }
+  }
+
+  /** Traces the cell outline: a smooth closed curve through the membrane points. */
+  private cellPath(id: number, x: number, y: number, r: number, soft: boolean) {
+    const ctx = this.ctx;
+    ctx.beginPath();
+    const ring = soft ? this.membranes.ring(id) : undefined;
+    if (!ring) {
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      return;
+    }
+    const n = ring.n;
+    const px = (i: number) => x + ring.cos[i % n] * (r + ring.off[i % n]);
+    const py = (i: number) => y + ring.sin[i % n] * (r + ring.off[i % n]);
+    ctx.moveTo((px(0) + px(1)) / 2, (py(0) + py(1)) / 2);
+    for (let i = 1; i <= n; i++) {
+      ctx.quadraticCurveTo(px(i), py(i), (px(i) + px(i + 1)) / 2, (py(i) + py(i + 1)) / 2);
+    }
+    ctx.closePath();
+  }
+
+  /** Swallowed entities slide into their eater's center while shrinking. */
+  private drawDying(alpha: number, dt: number) {
+    const ctx = this.ctx;
+    let w = 0;
+    for (const d of this.dying) {
+      d.t += dt / SWALLOW_TIME;
+      if (d.t >= 1) continue;
+      this.dying[w++] = d;
+      const k = d.t * d.t;
+      const tx = ix(d.pred, alpha);
+      const ty = iy(d.pred, alpha);
+      const x = d.sx + (tx - d.sx) * k;
+      const y = d.sy + (ty - d.sy) * k;
+      const r = d.r * (1 - d.t);
+      if (r <= 0.5) continue;
+      ctx.fillStyle = d.prey.color;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    this.dying.length = w;
   }
 
   private drawMinimap(world: World, cam: Camera, me: Player | null, W: number, H: number, bg: string) {
