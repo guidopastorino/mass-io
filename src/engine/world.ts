@@ -496,8 +496,13 @@ export class World {
         }
         if (!canEatByMass(cell.mass, prey.mass)) return;
         const victim = prey.owner!;
-        // Bots mode: a master and its minions never eat each other (mass moves via feeding).
-        if (squadOf(p) === squadOf(victim)) return;
+        // Bots mode: everyone can eat everyone, squad included. Only a freshly spawned
+        // minion is briefly safe from its own squad, so it isn't swallowed as it appears
+        // right next to its master.
+        if (squadOf(p) === squadOf(victim)) {
+          const fresh = (q: Player) => q.master !== null && this.time - q.stats.spawnedAt < PHYSICS.MINION_SPAWN_GRACE;
+          if (fresh(victim) || fresh(p)) return;
+        }
         this.absorb(cell, prey);
         p.stats.cellsEaten++;
         if (victim.cells.length === 0) victim.killedBy = p.name;

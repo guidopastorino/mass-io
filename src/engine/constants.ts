@@ -24,6 +24,8 @@ export const PHYSICS = {
   /** Seconds between minion spawns while a player is below the cap. */
   MINION_SPAWN_INTERVAL: 4,
   MINION_START_MASS: 100,
+  /** Seconds a newly spawned minion can't eat / be eaten by its own squad. */
+  MINION_SPAWN_GRACE: 3,
   /** Minions spawn this far (min..max) from the edge of their master's nearest cell. */
   MINION_SPAWN_GAP_MIN: 120,
   MINION_SPAWN_GAP_MAX: 600,
