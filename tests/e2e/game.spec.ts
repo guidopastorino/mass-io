@@ -3,6 +3,29 @@ import { expect, test, type Page } from '@playwright/test';
 /** Runs code against the live Game instance exposed on window for debugging/tests. */
 const game = <T>(page: Page, fn: string) => page.evaluate(`(() => { const g = window.__massio; ${fn} })()`) as Promise<T>;
 
+/**
+ * Folds the player into a single cell of `mass` and moves it (and its cursor target) to a
+ * spot with no virus nearby, so checks don't depend on a random virus pop.
+ */
+async function isolate(page: Page, mass: number) {
+  await game(
+    page,
+    `const w = g.world; const me = g.me.cells[0];
+     const sink = w.createEntity('spawner', 0, 0, 1, '#000');
+     for (const c of g.me.cells.slice(1)) w.absorb(sink, c);
+     w.setMass(me, ${mass});
+     let best = null, bestD = -1;
+     for (let i = 0; i < 400; i++) {
+       const x = 1500 + w.rng() * (w.mapSize - 3000), y = 1500 + w.rng() * (w.mapSize - 3000);
+       let d = Infinity;
+       for (const e of w.entities) if (e.kind === 'virus' || e.kind === 'spawner') d = Math.min(d, Math.hypot(e.x - x, e.y - y));
+       if (d > bestD) { bestD = d; best = { x, y }; }
+     }
+     me.x = me.px = best.x; me.y = me.py = best.y;
+     g.camera.reset();`,
+  );
+}
+
 async function play(page: Page, nick = 'E2E') {
   await page.goto('/');
   await page.getByTestId('nickname').fill(nick);
@@ -58,7 +81,7 @@ test('space splits, W ejects, and the camera keeps all cells on screen', async (
   // No bots, so nothing can eat the split pieces during the test.
   await page.evaluate(() => localStorage.setItem('mass-io:settings', JSON.stringify({ botCount: 0 })));
   await play(page);
-  await game(page, 'g.world.setMass(g.me.cells[0], 800);');
+  await isolate(page, 800);
   await page.mouse.move(1100, 300);
   await page.keyboard.press('Space');
   await page.waitForTimeout(150);
@@ -103,7 +126,7 @@ test('rebound keys work in game and settings persist across reloads', async ({ p
   await expect(page.getByTestId('fps')).toBeHidden();
   await expect(page.getByTestId('ping')).toBeVisible();
   // 120 mass: enough to split, too small to pop on a virus.
-  await game(page, 'g.world.setMass(g.me.cells[0], 120);');
+  await isolate(page, 120);
   await page.keyboard.press('Space');
   await page.waitForTimeout(200);
   expect(await game<number>(page, 'return g.me.cells.length;')).toBe(1);
@@ -185,13 +208,8 @@ test('bots mode: named, skinned minions follow the cursor and split on their key
   await page.getByTestId('minion-name').fill('Lavitas');
   await page.getByTestId('minion-skin-lava').click();
   await play(page, 'Boss');
-  // a single 100-mass cell: can't pop on a virus or swallow its own minions during the test
-  await game(
-    page,
-    `const me = g.me.cells[0]; const sink = g.world.createEntity('spawner', 0, 0, 1, '#000');
-     for (const c of g.me.cells.slice(1)) g.world.absorb(sink, c);
-     g.world.setMass(me, 100);`,
-  );
+  // a single 100-mass cell away from viruses: can't pop or swallow its own minions during the test
+  await isolate(page, 100);
   await expect(page.getByTestId('minions')).toContainText('/3');
   // minions spawn gradually: one after ~1 s, not all at once
   await expect(page.getByTestId('minions')).toContainText('1/3', { timeout: 3000 });
@@ -222,19 +240,16 @@ test('bots mode: named, skinned minions follow the cursor and split on their key
      g.world.setMass(g.me.cells[0], 300);`,
   );
   await page.mouse.move(1250, 360);
+  const t0 = await game<{ now: number; mine: number }>(page, 'return { now: g.world.time, mine: g.me.lastEject };');
   await page.keyboard.down('KeyQ');
   await page.waitForTimeout(150);
-  // (exact aim toward the cursor is covered by the engine unit test)
-  const shots = await game<{ ejecting: boolean; minionBlobs: number; masterBlobs: number }>(
+  // lastEject is stamped by the engine on every eject (blob counts can drop as blobs get eaten)
+  const shots = await game<{ ejecting: boolean; minionFired: boolean; masterFired: boolean }>(
     page,
     `const m = g.minions.minionsOf(g.me)[0];
-     const blobs = g.world.entities.filter((e) => e.kind === 'eject');
-     return { ejecting: m.ejecting, minionBlobs: blobs.filter((b) => b.shooterId === m.id).length,
-              masterBlobs: blobs.filter((b) => b.shooterId === g.me.id).length };`,
+     return { ejecting: m.ejecting, minionFired: m.lastEject > ${t0.now}, masterFired: g.me.lastEject !== ${t0.mine} };`,
   );
-  expect(shots.ejecting).toBe(true);
-  expect(shots.minionBlobs).toBeGreaterThan(0);
-  expect(shots.masterBlobs).toBe(0);
+  expect(shots).toEqual({ ejecting: true, minionFired: true, masterFired: false });
   await page.keyboard.up('KeyQ');
   await page.waitForTimeout(100);
   expect(await game<boolean>(page, 'return g.minions.minionsOf(g.me)[0].ejecting;')).toBe(false);
