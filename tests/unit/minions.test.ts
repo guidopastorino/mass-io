@@ -239,6 +239,63 @@ describe('bots mode', () => {
     expect(w.entities.some((e) => e.kind === 'eject' && e.shooterId === me.id)).toBe(false);
   });
 
+  it('a dead master respawns close to its biggest live minion', () => {
+    const { w, ctl, me } = botsWorld();
+    run(w, 1 + PHYSICS.MINION_SPAWN_INTERVAL * 2 + 0.1);
+    const [a, b, c] = ctl.minionsOf(me);
+    const place = (m: typeof a, x: number, y: number, mass: number) => {
+      w.setMass(m.cells[0], mass);
+      m.cells[0].x = m.cells[0].px = x;
+      m.cells[0].y = m.cells[0].py = y;
+    };
+    place(a, 1500, 1500, 200);
+    place(b, 8500, 8000, 900); // the biggest
+    place(c, 1500, 8500, 300);
+    // kill the master
+    const sink = w.createEntity('spawner', 0, 0, 1, '#000');
+    for (const cell of [...me.cells]) w.absorb(sink, cell);
+    w.step(1 / 60);
+    expect(me.alive).toBe(false);
+    const big = b.cells[0];
+    const cell = w.spawnPlayer(me, 1000);
+    const gap = Math.hypot(cell.x - big.x, cell.y - big.y) - cell.radius - big.radius;
+    expect(gap).toBeGreaterThan(30);
+    expect(gap).toBeLessThan(PHYSICS.MINION_SPAWN_GAP_MAX + 150);
+    expect(ctl.biggestMinion(me)).toBe(b);
+  });
+
+  it('with no live minions the master respawns at a random safe spot', () => {
+    const { w, ctl, me } = botsWorld();
+    expect(ctl.biggestMinion(me)).toBeNull();
+    expect(ctl.respawnPoint(me, 1000)).toBeNull();
+    const sink = w.createEntity('spawner', 0, 0, 1, '#000');
+    for (const cell of [...me.cells]) w.absorb(sink, cell);
+    w.step(1 / 60);
+    const cell = w.spawnPlayer(me, 1000);
+    expect(me.alive).toBe(true);
+    expect(cell.x).toBeGreaterThan(0);
+  });
+
+  it('respawning never lands next to a cell that could eat the player', () => {
+    const { w, ctl, me } = botsWorld();
+    run(w, 1.1);
+    const m = ctl.minionsOf(me)[0];
+    const shark = w.addPlayer({ name: 'shark' });
+    w.spawnPlayer(shark, 8000, { x: m.cells[0].x + 900, y: m.cells[0].y });
+    shark.targetX = shark.cells[0].x;
+    shark.targetY = shark.cells[0].y;
+    const sink = w.createEntity('spawner', 0, 0, 1, '#000');
+    for (const cell of [...me.cells]) w.absorb(sink, cell);
+    w.step(1 / 60);
+    for (let i = 0; i < 20; i++) {
+      const pos = ctl.respawnPoint(me, 1000)!;
+      const sc = shark.cells[0];
+      const gap = Math.hypot(pos.x - sc.x, pos.y - sc.y) - sc.radius;
+      // a spot outside the shark's reach was available on the far side of the minion
+      expect(gap).toBeGreaterThan(0);
+    }
+  });
+
   it('every AI player gets minions and uses them in a full match', () => {
     const w = new World({ mode: 'bots', seed: 7, mapSize: 6000, foodTarget: 800, virusMin: 15 });
     const bots = new BotController(w);
@@ -250,6 +307,19 @@ describe('bots mode', () => {
     expect(masters).toHaveLength(10);
     for (const p of masters) expect(ctl.minionsOf(p).length).toBeGreaterThan(0);
     expect(w.players.filter((p) => p.master).length).toBeLessThanOrEqual(10 * PHYSICS.MINIONS_PER_PLAYER);
+    // an AI master that dies comes back next to its biggest minion
+    const ai = masters.find((p) => ctl.biggestMinion(p))!;
+    const sink = w.createEntity('spawner', 0, 0, 1, '#000');
+    for (const cell of [...ai.cells]) w.absorb(sink, cell);
+    w.step(1 / 60);
+    expect(ai.alive).toBe(false);
+    run(w, 6);
+    expect(ai.alive).toBe(true);
+    const anchor = ctl.biggestMinion(ai);
+    if (anchor) {
+      const d = Math.min(...anchor.cells.map((c) => Math.hypot(c.x - ai.cells[0].x, c.y - ai.cells[0].y)));
+      expect(d).toBeLessThan(3500);
+    }
     run(w, 40);
     expect(w.leaderboard.every((e) => !w.players.find((p) => p.id === e.id)!.master)).toBe(true);
     expect(w.players.some((p) => p.master && p.stats.foodEaten > 10)).toBe(true);

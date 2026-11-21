@@ -44,6 +44,8 @@ export class World {
   readonly grid = new SpatialGrid(256);
   events: WorldEvent[] = [];
   leaderboard: LeaderboardEntry[] = [];
+  /** Optional override for where a player (re)spawns when no position is given. */
+  spawnLocator: ((p: Player, mass: number) => { x: number; y: number } | null) | null = null;
   /** Hooks run at the start of every step (bot AI). */
   readonly beforeStep: StepHook[] = [];
   /** Absorptions since the last drain, so the renderer can animate prey being swallowed. */
@@ -204,7 +206,7 @@ export class World {
   /** Spawns the player with a single starting cell at the safest of several random spots. */
   spawnPlayer(p: Player, mass: number = PHYSICS.START_MASS, at?: { x: number; y: number }): Entity {
     for (const c of [...p.cells]) this.remove(c);
-    const pos = at ?? this.findSafeSpawn(mass);
+    const pos = at ?? this.spawnLocator?.(p, mass) ?? this.findSafeSpawn(mass);
     const cell = this.addCell(p, pos.x, pos.y, mass);
     p.alive = true;
     p.targetX = pos.x;

@@ -33,6 +33,29 @@ export class MinionController {
     readonly interval: number = PHYSICS.MINION_SPAWN_INTERVAL,
   ) {
     world.beforeStep.push(this.update);
+    // Masters (human and AI) respawn next to their biggest surviving minion.
+    world.spawnLocator = (p, mass) => (p.master ? null : this.respawnPoint(p, mass));
+  }
+
+  /** Biggest live minion of `master`, or null if none survives. */
+  biggestMinion(master: Player): Player | null {
+    let best: Player | null = null;
+    let bestMass = 0;
+    for (const m of this.minionsOf(master)) {
+      if (!m.alive) continue;
+      const mass = this.world.totalMass(m);
+      if (mass > bestMass) {
+        bestMass = mass;
+        best = m;
+      }
+    }
+    return best;
+  }
+
+  /** Where `master` should respawn: close to its biggest live minion, or null (random safe spot). */
+  respawnPoint(master: Player, mass: number) {
+    const anchor = this.biggestMinion(master);
+    return anchor ? spawnNear(this.world, anchor, mass) : null;
   }
 
   /** Name / skin / color for a player's minions (the human sets these in the menu). */
@@ -124,25 +147,26 @@ export class MinionController {
 }
 
 /**
- * A spot close to the master: a short gap outside one of its cells, never overlapping the
- * master (it would swallow the minion at once) nor inside any cell big enough to eat it.
+ * A spot close to `anchor` (a master for new minions, the biggest minion for a respawning
+ * master): a short gap outside one of its cells, never overlapping it nor next to any
+ * cell big enough to eat the newcomer.
  */
-export function spawnNear(world: World, master: Player, mass: number) {
+export function spawnNear(world: World, anchor: Player, mass: number) {
   const r = massToRadius(mass);
   const margin = r + 20;
   let fallback: { x: number; y: number } | null = null;
   for (let attempt = 0; attempt < 16; attempt++) {
-    const anchor = master.cells[Math.floor(world.rng() * master.cells.length)];
+    const base = anchor.cells[Math.floor(world.rng() * anchor.cells.length)];
     const angle = world.rng() * Math.PI * 2;
     const gap = PHYSICS.MINION_SPAWN_GAP_MIN + world.rng() * (PHYSICS.MINION_SPAWN_GAP_MAX - PHYSICS.MINION_SPAWN_GAP_MIN);
-    const d = anchor.radius + r + gap;
-    const x = Math.min(world.mapSize - margin, Math.max(margin, anchor.x + Math.cos(angle) * d));
-    const y = Math.min(world.mapSize - margin, Math.max(margin, anchor.y + Math.sin(angle) * d));
+    const d = base.radius + r + gap;
+    const x = Math.min(world.mapSize - margin, Math.max(margin, base.x + Math.cos(angle) * d));
+    const y = Math.min(world.mapSize - margin, Math.max(margin, base.y + Math.sin(angle) * d));
     fallback ??= { x, y };
     const blocked = world.players.some((p) =>
       p.cells.some((c) => {
         const dist = Math.hypot(c.x - x, c.y - y);
-        if (p === master) return dist < c.radius + r + 40;
+        if (dist < c.radius + r + 40) return p === anchor || canEatByMass(c.mass, mass) || canEatByMass(mass, c.mass);
         return canEatByMass(c.mass, mass) && dist < c.radius + r + 150;
       }),
     );
