@@ -17,6 +17,7 @@ interface Props {
 const MODES: { id: GameMode; label: string; desc: string }[] = [
   { id: 'ffa', label: 'FFA', desc: 'Todos contra todos. Alimentá virus para dispararlos.' },
   { id: 'experimental', label: 'Experimental', desc: 'Spawners que reparten masa y virus que se desplazan.' },
+  { id: 'bots', label: 'Bots', desc: 'Controlás bots que siguen tu mouse. Las células se unen más rápido.' },
 ];
 
 export function Menu({ settings, update, onPlay, onSettings, canContinue, onContinue }: Props) {
@@ -83,6 +84,42 @@ export function Menu({ settings, update, onPlay, onSettings, canContinue, onCont
               />
             ))}
           </div>
+          {settings.mode === 'bots' && (
+            <div className="minion-setup" data-testid="minion-setup">
+              <div className="section-label">Tus bots</div>
+              <input
+                className="nick small"
+                data-testid="minion-name"
+                placeholder="Nombre de tus bots"
+                maxLength={15}
+                value={settings.minionName}
+                onChange={(e) => update({ minionName: e.target.value })}
+              />
+              <div className="skins">
+                <button
+                  type="button"
+                  className={settings.minionSkin === null ? 'skin active' : 'skin'}
+                  style={{ background: settings.color }}
+                  onClick={() => update({ minionSkin: null })}
+                  data-testid="minion-skin-none"
+                  aria-label="Bots sin skin"
+                />
+                {SKINS.map((s) => (
+                  <button
+                    type="button"
+                    key={s}
+                    className={settings.minionSkin === s ? 'skin active' : 'skin'}
+                    style={{ backgroundImage: `url(${skinUrls[s]})` }}
+                    onClick={() => update({ minionSkin: s })}
+                    data-testid={`minion-skin-${s}`}
+                    title={`Bots: ${SKIN_LABELS[s]}`}
+                    aria-label={`Bots: ${SKIN_LABELS[s]}`}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="colors">
             {CELL_COLORS.map((c) => (
               <button
@@ -111,7 +148,10 @@ export function Menu({ settings, update, onPlay, onSettings, canContinue, onCont
             </button>
           </div>
         </form>
-        <p className="controls-hint">Mouse: mover · Espacio: dividir · W: expulsar masa · Rueda: zoom</p>
+        <p className="controls-hint">
+          Mouse: mover · Espacio: dividir · W: expulsar masa · Rueda: zoom
+          {settings.mode === 'bots' && <> · E / R / Y: dividir bots (x2 / x4 / x16)</>}
+        </p>
       </div>
     </div>
   );

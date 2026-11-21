@@ -64,6 +64,16 @@ describe('settings', () => {
     }
   });
 
+  it('keeps bots mode settings and minion keys', () => {
+    const s = sanitizeSettings({ mode: 'bots', minionName: 'Pepe', minionSkin: 'lava', keys: { minionSplit: 'KeyZ' } });
+    expect(s.mode).toBe('bots');
+    expect(s.minionName).toBe('Pepe');
+    expect(s.minionSkin).toBe('lava');
+    expect(s.keys.minionSplit).toBe('KeyZ');
+    expect(s.keys.minionDoubleSplit).toBe('KeyR');
+    expect(sanitizeSettings({ minionSkin: 'nope' }).minionSkin).toBeNull();
+  });
+
   it('labels keys for display', () => {
     expect(keyLabel('Space')).toBe('Espacio');
     expect(keyLabel('KeyW')).toBe('W');

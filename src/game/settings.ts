@@ -2,7 +2,15 @@ import type { GameMode } from '../engine/constants';
 import { SKINS, type SkinId } from '../engine/skins';
 
 export type Theme = 'light' | 'dark';
-export type Action = 'split' | 'eject' | 'doubleSplit' | 'maxSplit' | 'menu';
+export type Action =
+  | 'split'
+  | 'eject'
+  | 'doubleSplit'
+  | 'maxSplit'
+  | 'minionSplit'
+  | 'minionDoubleSplit'
+  | 'minionMaxSplit'
+  | 'menu';
 
 export interface HudSettings {
   fps: boolean;
@@ -26,6 +34,9 @@ export interface Settings {
   mode: GameMode;
   skin: SkinId | null;
   color: string;
+  /** Bots mode: name and skin of the player's minions. */
+  minionName: string;
+  minionSkin: SkinId | null;
   /** KeyboardEvent.code per action. */
   keys: Record<Action, string>;
   /** Cursor sensitivity: scales the cursor offset from screen center. */
@@ -41,6 +52,9 @@ export const ACTION_LABELS: Record<Action, string> = {
   eject: 'Expulsar masa',
   doubleSplit: 'Doble división',
   maxSplit: 'División x16',
+  minionSplit: 'Bots: dividir',
+  minionDoubleSplit: 'Bots: doble división',
+  minionMaxSplit: 'Bots: división x16',
   menu: 'Menú / pausa',
 };
 
@@ -66,7 +80,18 @@ export const DEFAULT_SETTINGS: Settings = {
   mode: 'ffa',
   skin: null,
   color: '#2ec4b6',
-  keys: { split: 'Space', eject: 'KeyW', doubleSplit: 'KeyG', maxSplit: 'KeyT', menu: 'Escape' },
+  minionName: 'Mini',
+  minionSkin: null,
+  keys: {
+    split: 'Space',
+    eject: 'KeyW',
+    doubleSplit: 'KeyG',
+    maxSplit: 'KeyT',
+    minionSplit: 'KeyE',
+    minionDoubleSplit: 'KeyR',
+    minionMaxSplit: 'KeyY',
+    menu: 'Escape',
+  },
   sensitivity: 1,
   botCount: 40,
   animations: true,
@@ -114,8 +139,10 @@ export function sanitizeSettings(raw: unknown): Settings {
     version: 1,
     theme: r.theme === 'dark' ? 'dark' : 'light',
     nickname: typeof r.nickname === 'string' ? r.nickname.slice(0, 15) : d.nickname,
-    mode: r.mode === 'experimental' ? 'experimental' : 'ffa',
-    skin: r.skin && (SKINS as readonly string[]).includes(r.skin) ? r.skin : null,
+    mode: r.mode === 'experimental' || r.mode === 'bots' ? r.mode : 'ffa',
+    skin: validSkin(r.skin),
+    minionName: typeof r.minionName === 'string' ? r.minionName.slice(0, 15) : d.minionName,
+    minionSkin: validSkin(r.minionSkin),
     color: typeof r.color === 'string' && /^#[0-9a-f]{6}$/i.test(r.color) ? r.color : d.color,
     keys,
     sensitivity: clampNum(r.sensitivity, 0.3, 2.5, d.sensitivity),
@@ -123,6 +150,10 @@ export function sanitizeSettings(raw: unknown): Settings {
     animations: typeof r.animations === 'boolean' ? r.animations : d.animations,
     hud,
   };
+}
+
+function validSkin(v: unknown): SkinId | null {
+  return typeof v === 'string' && (SKINS as readonly string[]).includes(v) ? (v as SkinId) : null;
 }
 
 export function loadSettings(storage: Pick<Storage, 'getItem'> | null = safeStorage()): Settings {
