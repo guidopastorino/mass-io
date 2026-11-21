@@ -87,6 +87,8 @@ export class BotController {
       brain.intent = d.intent;
       if (d.split) {
         world.requestSplit(p);
+        // Bots mode: send the squad in too (minions follow the same target).
+        if (world.mode === 'bots') p.minionSplitQueue = Math.min(p.minionSplitQueue + 1, 4);
         brain.splitReadyAt = world.time + randRange(world.rng, 1.5, 3.5);
       }
     }
