@@ -105,10 +105,11 @@ export class Renderer {
     // Cull and sort: pellets first, then everything else by mass so bigger bodies cover smaller ones.
     const list = this.drawList;
     list.length = 0;
-    const rs = opt.animations ? smoothing(12, dt) : 1;
+    const rs = opt.animations ? Math.min(1, Math.max(0, smoothing(12, dt))) : 1;
     for (const e of world.entities) {
       if (e.removed) continue;
       e.renderRadius += (e.radius - e.renderRadius) * rs;
+      if (!(e.renderRadius > 0)) e.renderRadius = e.radius;
       const r = e.renderRadius;
       const x = ix(e, alpha);
       const y = iy(e, alpha);

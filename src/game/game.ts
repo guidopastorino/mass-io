@@ -152,8 +152,9 @@ export class Game {
 
   /** Advances the simulation by real elapsed time and renders one frame. */
   frame(now: number) {
-    const dt = Math.min((now - this.last) / 1000, 0.25);
-    this.last = now;
+    // rAF timestamps can precede the performance.now() taken in start(): never step backwards.
+    const dt = Math.max(0, Math.min((now - this.last) / 1000, 0.25));
+    this.last = Math.max(now, this.last);
     this.acc += dt;
     const step = PHYSICS.STEP;
     let ticks = 0;
