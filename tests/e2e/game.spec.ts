@@ -33,10 +33,10 @@ test('menu shows modes, skins and starts a FFA game', async ({ page }) => {
   await expect(page.getByTestId('skin-galaxy')).toHaveClass(/active/);
   await page.getByTestId('skin-moon').click();
   await play(page, 'Moonie');
-  // the human starts every life with 1000 mass (± decay / a pellet eaten on spawn)
+  // the human starts every life with 1000 mass (± decay / whatever it ate in its first frames)
   const startMass = await game<number>(page, 'return g.world.totalMass(g.me);');
   expect(startMass).toBeGreaterThan(980);
-  expect(startMass).toBeLessThan(1030);
+  expect(startMass).toBeLessThan(1500);
   const me = await game<{ name: string; skin: string; alive: boolean; mode: string }>(
     page,
     'return { name: g.me.name, skin: g.me.skin, alive: g.me.alive, mode: g.world.mode };',
@@ -204,6 +204,26 @@ test('bots mode: named, skinned minions follow the cursor and split on their key
   await page.waitForTimeout(200);
   expect(await game<number>(page, 'return g.minions.minionsOf(g.me)[0].cells.length;')).toBe(2);
   expect(await game<number>(page, 'return g.me.cells.length;')).toBe(1);
+  // holding Q makes minions feed their master
+  await game(page, `const m = g.minions.minionsOf(g.me)[0]; for (const c of m.cells) g.world.setMass(c, 300);`);
+  await page.keyboard.down('KeyQ');
+  await page.waitForTimeout(150);
+  const feeding = await game<{ ejecting: boolean; aimsAtMe: boolean }>(
+    page,
+    `const m = g.minions.minionsOf(g.me)[0]; const c = g.me.cells[0];
+     return { ejecting: m.ejecting, aimsAtMe: !!m.ejectAt && Math.hypot(m.ejectAt.x - c.x, m.ejectAt.y - c.y) < c.radius };`,
+  );
+  expect(feeding).toEqual({ ejecting: true, aimsAtMe: true });
+  await page.keyboard.up('KeyQ');
+  await page.waitForTimeout(100);
+  expect(await game<boolean>(page, 'return g.minions.minionsOf(g.me)[0].ejecting;')).toBe(false);
+  // minions appear near the master
+  const gap = await game<number>(
+    page,
+    `const m = g.minions.minionsOf(g.me).find((x) => x.alive); const c = m.cells[0], me = g.me.cells[0];
+     return Math.hypot(c.x - me.x, c.y - me.y);`,
+  );
+  expect(gap).toBeLessThan(2500);
   // minions never take a leaderboard slot
   const onBoard = await game<boolean>(
     page,

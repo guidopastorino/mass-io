@@ -150,7 +150,7 @@ export function Menu({ settings, update, onPlay, onSettings, canContinue, onCont
         </form>
         <p className="controls-hint">
           Mouse: mover · Espacio: dividir · W: expulsar masa · Rueda: zoom
-          {settings.mode === 'bots' && <> · E / R / Y: dividir bots (x2 / x4 / x16)</>}
+          {settings.mode === 'bots' && <> · E / R / Y: dividir bots (x2 / x4 / x16) · Q: bots te dan masa</>}
         </p>
       </div>
     </div>

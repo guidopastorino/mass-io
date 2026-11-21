@@ -10,6 +10,7 @@ export type Action =
   | 'minionSplit'
   | 'minionDoubleSplit'
   | 'minionMaxSplit'
+  | 'minionEject'
   | 'menu';
 
 export interface HudSettings {
@@ -55,6 +56,7 @@ export const ACTION_LABELS: Record<Action, string> = {
   minionSplit: 'Bots: dividir',
   minionDoubleSplit: 'Bots: doble división',
   minionMaxSplit: 'Bots: división x16',
+  minionEject: 'Bots: dar masa (mantener)',
   menu: 'Menú / pausa',
 };
 
@@ -90,6 +92,7 @@ export const DEFAULT_SETTINGS: Settings = {
     minionSplit: 'KeyE',
     minionDoubleSplit: 'KeyR',
     minionMaxSplit: 'KeyY',
+    minionEject: 'KeyQ',
     menu: 'Escape',
   },
   sensitivity: 1,

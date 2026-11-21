@@ -290,10 +290,15 @@ export class Game {
       this.trigger(action, e.repeat);
     });
     on(window, 'keyup', (e) => {
-      if (this.actionFor(e.code) === 'eject' && this.me) this.me.ejecting = false;
+      const a = this.actionFor(e.code);
+      if (!this.me) return;
+      if (a === 'eject') this.me.ejecting = false;
+      if (a === 'minionEject') this.me.minionEjecting = false;
     });
     on(window, 'blur', () => {
-      if (this.me) this.me.ejecting = false;
+      if (!this.me) return;
+      this.me.ejecting = false;
+      this.me.minionEjecting = false;
     });
   }
 
@@ -332,6 +337,9 @@ export class Game {
         break;
       case 'minionMaxSplit':
         if (!repeat) this.minions?.requestSplit(me, 4);
+        break;
+      case 'minionEject':
+        if (this.minions) me.minionEjecting = true;
         break;
     }
   }

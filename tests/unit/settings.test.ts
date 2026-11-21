@@ -71,6 +71,7 @@ describe('settings', () => {
     expect(s.minionSkin).toBe('lava');
     expect(s.keys.minionSplit).toBe('KeyZ');
     expect(s.keys.minionDoubleSplit).toBe('KeyR');
+    expect(s.keys.minionEject).toBe('KeyQ');
     expect(sanitizeSettings({ minionSkin: 'nope' }).minionSkin).toBeNull();
   });
 
