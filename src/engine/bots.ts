@@ -42,8 +42,9 @@ export class BotController {
     const w = this.world;
     const used = new Set(w.players.map((p) => p.name));
     for (let i = 0; i < count; i++) {
-      let name = pick(w.rng, BOT_NAMES);
-      if (used.has(name)) name = `${name} ${Math.floor(w.rng() * 90) + 10}`;
+      const free = BOT_NAMES.filter((n) => !used.has(n));
+      let name = free.length ? pick(w.rng, free) : pick(w.rng, BOT_NAMES);
+      if (used.has(name)) name = `${name} ${['II', 'III', 'IV', 'V'][Math.floor(w.rng() * 4)]}`;
       used.add(name);
       const skin = w.rng() < 0.25 ? pick(w.rng, BOT_SKINS) : null;
       const bot = w.addPlayer({ name, skin, color: pick(w.rng, CELL_COLORS), isBot: true });
