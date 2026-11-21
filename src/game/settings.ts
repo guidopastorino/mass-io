@@ -56,7 +56,7 @@ export const ACTION_LABELS: Record<Action, string> = {
   minionSplit: 'Bots: dividir',
   minionDoubleSplit: 'Bots: doble división',
   minionMaxSplit: 'Bots: división x16',
-  minionEject: 'Bots: dar masa (mantener)',
+  minionEject: 'Bots: expulsar masa (mantener)',
   menu: 'Menú / pausa',
 };
 

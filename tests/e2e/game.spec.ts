@@ -182,6 +182,8 @@ test('bots mode: named, skinned minions follow the cursor and split on their key
   await page.getByTestId('minion-name').fill('Lavitas');
   await page.getByTestId('minion-skin-lava').click();
   await play(page, 'Boss');
+  // 100 mass: can't pop on a virus or swallow its own minions during the test
+  await game(page, 'g.world.setMass(g.me.cells[0], 100);');
   await expect(page.getByTestId('minions')).toContainText('/3');
   // minions spawn gradually: one after ~1 s, not all at once
   await expect(page.getByTestId('minions')).toContainText('1/3', { timeout: 3000 });
@@ -204,16 +206,22 @@ test('bots mode: named, skinned minions follow the cursor and split on their key
   await page.waitForTimeout(200);
   expect(await game<number>(page, 'return g.minions.minionsOf(g.me)[0].cells.length;')).toBe(2);
   expect(await game<number>(page, 'return g.me.cells.length;')).toBe(1);
-  // holding Q makes minions feed their master
+  // holding Q makes minions eject toward the cursor, like a regular W
   await game(page, `const m = g.minions.minionsOf(g.me)[0]; for (const c of m.cells) g.world.setMass(c, 300);`);
+  await page.mouse.move(1250, 360);
   await page.keyboard.down('KeyQ');
   await page.waitForTimeout(150);
-  const feeding = await game<{ ejecting: boolean; aimsAtMe: boolean }>(
+  // (exact aim toward the cursor is covered by the engine unit test)
+  const shots = await game<{ ejecting: boolean; minionBlobs: number; masterBlobs: number }>(
     page,
-    `const m = g.minions.minionsOf(g.me)[0]; const c = g.me.cells[0];
-     return { ejecting: m.ejecting, aimsAtMe: !!m.ejectAt && Math.hypot(m.ejectAt.x - c.x, m.ejectAt.y - c.y) < c.radius };`,
+    `const m = g.minions.minionsOf(g.me)[0];
+     const blobs = g.world.entities.filter((e) => e.kind === 'eject');
+     return { ejecting: m.ejecting, minionBlobs: blobs.filter((b) => b.shooterId === m.id).length,
+              masterBlobs: blobs.filter((b) => b.shooterId === g.me.id).length };`,
   );
-  expect(feeding).toEqual({ ejecting: true, aimsAtMe: true });
+  expect(shots.ejecting).toBe(true);
+  expect(shots.minionBlobs).toBeGreaterThan(0);
+  expect(shots.masterBlobs).toBe(0);
   await page.keyboard.up('KeyQ');
   await page.waitForTimeout(100);
   expect(await game<boolean>(page, 'return g.minions.minionsOf(g.me)[0].ejecting;')).toBe(false);

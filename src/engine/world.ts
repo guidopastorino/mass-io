@@ -191,7 +191,6 @@ export class World {
       master: opts.master ?? null,
       minionSplitQueue: 0,
       minionEjecting: false,
-      ejectAt: null,
     };
     this.players.push(p);
     return p;
@@ -291,8 +290,7 @@ export class World {
   private processEject(p: Player) {
     for (const c of [...p.cells]) {
       if (c.mass < PHYSICS.MIN_EJECT_MASS) continue;
-      const base = p.ejectAt ? Math.atan2(p.ejectAt.y - c.y, p.ejectAt.x - c.x) : this.aimAngle(p, c);
-      const angle = base + (this.rng() * 2 - 1) * PHYSICS.EJECT_SPREAD;
+      const angle = this.aimAngle(p, c) + (this.rng() * 2 - 1) * PHYSICS.EJECT_SPREAD;
       this.setMass(c, c.mass - PHYSICS.EJECT_MASS_LOSS);
       const dx = Math.cos(angle);
       const dy = Math.sin(angle);
@@ -496,13 +494,6 @@ export class World {
         }
         if (!canEatByMass(cell.mass, prey.mass)) return;
         const victim = prey.owner!;
-        // Bots mode: everyone can eat everyone, squad included. Only a freshly spawned
-        // minion is briefly safe from its own squad, so it isn't swallowed as it appears
-        // right next to its master.
-        if (squadOf(p) === squadOf(victim)) {
-          const fresh = (q: Player) => q.master !== null && this.time - q.stats.spawnedAt < PHYSICS.MINION_SPAWN_GRACE;
-          if (fresh(victim) || fresh(p)) return;
-        }
         this.absorb(cell, prey);
         p.stats.cellsEaten++;
         if (victim.cells.length === 0) victim.killedBy = p.name;
@@ -748,9 +739,4 @@ function emptyStats(now: number) {
 function feedAngle(blob: Entity, virus: Entity) {
   if (blob.boost > 0) return Math.atan2(blob.bdy, blob.bdx);
   return Math.atan2(virus.y - blob.y, virus.x - blob.x);
-}
-
-/** The squad leader: the master for a minion, the player itself otherwise. */
-function squadOf(p: Player) {
-  return p.master ?? p;
 }

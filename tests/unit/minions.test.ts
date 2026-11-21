@@ -91,7 +91,7 @@ describe('bots mode', () => {
 
   it('everyone eats everyone: master, minions and siblings', () => {
     const { w, ctl, me } = botsWorld();
-    run(w, 1 + PHYSICS.MINION_SPAWN_INTERVAL * 2 + PHYSICS.MINION_SPAWN_GRACE + 0.1);
+    run(w, 1 + PHYSICS.MINION_SPAWN_INTERVAL * 2 + 0.1);
     const [m1, m2, m3] = ctl.minionsOf(me);
     for (const m of [m1, m2, m3]) expect(m.alive).toBe(true);
     const place = (c: { x: number; y: number; px: number; py: number }, x: number, y: number) => {
@@ -122,19 +122,19 @@ describe('bots mode', () => {
     expect(me.killedBy).toBe(m2.name);
   });
 
-  it('a just-spawned minion is briefly safe from its own squad only', () => {
+  it('a master can eat a minion the moment it appears', () => {
     const { w, ctl, me } = botsWorld();
     run(w, 1.05);
     const m = ctl.minionsOf(me)[0];
+    expect(m.alive).toBe(true);
     w.setMass(me.cells[0], 1000);
     me.cells[0].x = m.cells[0].x;
     me.cells[0].y = m.cells[0].y;
     me.targetX = m.cells[0].x;
     me.targetY = m.cells[0].y;
     w.step(1 / 60);
-    expect(m.alive).toBe(true);
-    run(w, PHYSICS.MINION_SPAWN_GRACE);
     expect(m.alive).toBe(false);
+    expect(m.killedBy).toBe('me');
   });
 
   it('other players can eat minions at any time', () => {
@@ -214,24 +214,29 @@ describe('bots mode', () => {
     expect(spawns).toBe(3);
   });
 
-  it('feed key makes minions eject mass at their master', () => {
+  it('minion eject key fires mass toward the master cursor, like a regular W', () => {
     const { w, ctl, me } = botsWorld();
     run(w, 1.1);
     const m = ctl.minionsOf(me)[0];
     w.setMass(m.cells[0], 300);
-    // cursor far from the master: minions head there but still aim the feed at the master
-    me.targetX = me.cells[0].x;
-    me.targetY = me.cells[0].y - 3000;
-    const before = me.cells[0].mass;
+    // cursor far to the right of everything
+    me.targetX = 9500;
+    me.targetY = m.cells[0].y;
     me.minionEjecting = true;
-    run(w, 1.5);
+    w.step(1 / 60);
+    const blobs = w.entities.filter((e) => e.kind === 'eject' && e.shooterId === m.id);
+    expect(blobs.length).toBeGreaterThan(0);
+    for (const b of blobs) {
+      // aimed at the cursor (within the eject spread), not at the master
+      expect(Math.abs(Math.atan2(b.bdy, b.bdx))).toBeLessThanOrEqual(PHYSICS.EJECT_SPREAD + 1e-6);
+    }
+    run(w, 1);
     me.minionEjecting = false;
-    run(w, 1.5);
-    expect(m.ejectAt).toBeNull();
+    w.step(1 / 60);
     expect(m.ejecting).toBe(false);
-    // the minion gave its mass away (or was eaten by the master it fed)
-    expect(!m.alive || m.cells[0].mass < 150).toBe(true);
-    expect(w.totalMass(me)).toBeGreaterThan(before + 100);
+    expect(m.cells[0].mass).toBeLessThan(200);
+    // the master itself did not eject
+    expect(w.entities.some((e) => e.kind === 'eject' && e.shooterId === me.id)).toBe(false);
   });
 
   it('every AI player gets minions and uses them in a full match', () => {

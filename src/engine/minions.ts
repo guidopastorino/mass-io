@@ -1,7 +1,7 @@
 import { PHYSICS } from './constants';
 import { canEatByMass, massToRadius } from './math';
 import type { SkinId } from './skins';
-import type { Entity, Player } from './types';
+import type { Player } from './types';
 import type { World } from './world';
 
 export interface MinionLook {
@@ -76,7 +76,7 @@ export class MinionController {
       const squad = this.squadOf(master);
 
       // Steer every live minion toward the master's cursor, apply queued splits and,
-      // while the feed key is held, eject mass at the master's nearest cell.
+      // while the minion eject key is held, eject mass toward that same cursor.
       const splits = master.minionSplitQueue;
       master.minionSplitQueue = 0;
       const feeding = master.minionEjecting && master.alive;
@@ -84,20 +84,14 @@ export class MinionController {
       for (const m of squad.minions) {
         if (!m.alive) {
           m.ejecting = false;
-          m.ejectAt = null;
           continue;
         }
         alive++;
         m.targetX = master.targetX;
         m.targetY = master.targetY;
         if (splits > 0) world.requestSplit(m, splits);
+        // Like a regular player's W: ejects toward the cursor the minion is steering to.
         m.ejecting = feeding;
-        if (feeding) {
-          const near = nearestCell(master.cells, m.cells[0]);
-          m.ejectAt = { x: near.x, y: near.y };
-        } else {
-          m.ejectAt = null;
-        }
       }
 
       // A minion died: its replacement waits a full interval.
@@ -127,19 +121,6 @@ export class MinionController {
       squad.lastAlive = alive + 1;
     }
   };
-}
-
-function nearestCell(cells: readonly Entity[], from: { x: number; y: number }) {
-  let best = cells[0];
-  let bd = Infinity;
-  for (const c of cells) {
-    const d = (c.x - from.x) ** 2 + (c.y - from.y) ** 2;
-    if (d < bd) {
-      bd = d;
-      best = c;
-    }
-  }
-  return best;
 }
 
 /**
