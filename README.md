@@ -22,6 +22,7 @@ pnpm build
 | Doble división | G |
 | División x16 | T |
 | Bots: dividir / doble / x16 (modo Bots) | E / R / Y |
+| Bots: darte masa (mantener, modo Bots) | Q |
 | Menú / pausa | Esc |
 | Zoom | Rueda del mouse |
 
@@ -33,7 +34,7 @@ pnpm build
 - Eject: cuesta 18 de masa y lanza 13, con cooldown de 100 ms.
 - Virus: al comerlos explotás en hasta 16 piezas. En FFA, alimentarlos 7 veces dispara un virus nuevo; en Experimental, alimentarlos los empuja.
 - Experimental: spawners rojizos que producen pellets, absorben eject y células chicas y redistribuyen esa masa como pellets. Si una célula grande se come uno, gana su masa y explota igual que con un virus verde.
-- Modo Bots: cada jugador (vos y cada IA) tiene hasta 3 minions con el nombre y la skin que elijas en el menú. Siguen tu cursor, comen y pueden ser comidos como cualquier jugador (incluso por vos, para alimentarte) y se dividen con sus propias teclas. Aparecen de a uno cada 4 s y los que mueren se reponen de a poco. Las células se recombinan 4 veces más rápido. En el minimapa se ven con un anillo blanco y no ocupan lugares del leaderboard.
+- Modo Bots: cada jugador (vos y cada IA) tiene hasta 3 minions con el nombre y la skin que elijas en el menú. Aparecen cerca tuyo, siguen tu cursor y se dividen con sus propias teclas; manteniendo Q te disparan su masa. Comen y pueden ser comidos por los demás, pero vos y tus minions nunca se comen entre sí. Aparecen de a uno cada 4 s y los que mueren se reponen de a poco. Las células se recombinan 4 veces más rápido. En el minimapa se ven con un anillo blanco y no ocupan lugares del leaderboard.
 - Cámara: zoom `pow(min(64/Σr, 1), 0.4)` escalado al viewport y ampliado para que todas tus células queden en pantalla; seguimiento y zoom suavizados, independientes del framerate.
 - Bots: buscan comida, cazan, huyen, hacen split-kill solo cuando es seguro, disparan virus contra amenazas, evitan bordes y virus, merodean los spawners, se reagrupan y reaparecen.
 
