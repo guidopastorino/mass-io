@@ -20,7 +20,8 @@ export const eatDistance = (predatorRadius: number, preyRadius: number) =>
  * Distance travelled during dt by an exponentially decaying boost with `remaining`
  * distance left. Integrates exactly, so it's frame-rate independent.
  */
-export const boostStep = (remaining: number, dt: number) => remaining * (1 - Math.exp(-PHYSICS.BOOST_DECAY * dt));
+export const boostStep = (remaining: number, dt: number, rate: number = PHYSICS.BOOST_DECAY) =>
+  remaining * (1 - Math.exp(-rate * dt));
 
 export const clamp = (v: number, min: number, max: number) => (v < min ? min : v > max ? max : v);
 export const lerp = (a: number, b: number, t: number) => a + (b - a) * t;

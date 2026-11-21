@@ -69,6 +69,27 @@ describe('camera smoothing', () => {
     expect(z0 - z1).toBeLessThan((z0 - cameraTarget([cell(0, 0, 3000)], 1920, 1080)!.zoom) * 0.1);
   });
 
+  it('follows a split without jumping', () => {
+    const cam = new Camera();
+    cam.update([cell(0, 0, 400)], 1920, 1080, 1 / 60);
+    // the half flies off 780 units over ~1.6 s; the camera eases toward the new center
+    let maxDx = 0;
+    let maxDz = 0;
+    let prevX = cam.x;
+    let prevZ = cam.zoom;
+    for (let i = 0; i < 120; i++) {
+      const t = i / 60;
+      const off = 780 * (1 - Math.exp(-1.9 * t));
+      cam.update([cell(0, 0, 200), cell(off, 0, 200)], 1920, 1080, 1 / 60);
+      maxDx = Math.max(maxDx, Math.abs(cam.x - prevX));
+      maxDz = Math.max(maxDz, Math.abs(Math.log(cam.zoom / prevZ)));
+      prevX = cam.x;
+      prevZ = cam.zoom;
+    }
+    expect(maxDx).toBeLessThan(10); // < 10 world units per frame
+    expect(maxDz).toBeLessThan(0.02); // < 2 % zoom change per frame
+  });
+
   it('is frame-rate independent', () => {
     const a = new Camera();
     const b = new Camera();

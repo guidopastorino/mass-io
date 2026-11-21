@@ -64,8 +64,8 @@ export class Camera {
   private ready = false;
   /** Follow rate (1/s) for position and zoom. */
   constructor(
-    public moveRate = 7,
-    public zoomRate = 3.2,
+    public moveRate = 5,
+    public zoomRate = 2.5,
   ) {}
 
   reset() {

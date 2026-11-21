@@ -348,7 +348,7 @@ export class World {
     for (const e of this.entities) {
       if (e.removed) continue;
       if (e.boost > 0) {
-        const s = boostStep(e.boost, dt);
+        const s = boostStep(e.boost, dt, e.kind === 'cell' ? PHYSICS.SPLIT_BOOST_DECAY : PHYSICS.BOOST_DECAY);
         e.x += e.bdx * s;
         e.y += e.bdy * s;
         e.boost -= s;

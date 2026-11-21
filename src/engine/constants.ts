@@ -61,6 +61,12 @@ export const PHYSICS = {
   VIRUS_SHOT_BOOST: 780,
   /** Boost decays by 1/9 per 40 ms tick -> exponential rate per second. */
   BOOST_DECAY: -25 * Math.log(8 / 9),
+  /**
+   * Player cells (split / virus pop) use a gentler decay: same total distance, but the
+   * peak speed drops from ~2300 to ~1480 u/s and the glide lasts ~1.6 s instead of ~1 s,
+   * so split-running feels smooth instead of a jump.
+   */
+  SPLIT_BOOST_DECAY: 1.9,
 
   // --- Eject (W) ---
   EJECT_MASS: 13,

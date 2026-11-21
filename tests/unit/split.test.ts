@@ -96,6 +96,44 @@ describe('split', () => {
   });
 });
 
+describe('smooth split', () => {
+  it('the split piece glides: capped peak speed, same total distance', () => {
+    const { w, p } = setup(400);
+    p.targetX = 5000; // no steering, measure the boost alone
+    p.targetY = 5000;
+    w.requestSplit(p);
+    w.step(1 / 60);
+    p.targetX = p.cells[1].x;
+    const child = p.cells[1];
+    child.bdx = 1;
+    child.bdy = 0;
+    let maxStep = 0;
+    let travelled = 0;
+    let prev = child.x;
+    for (let i = 0; i < 60 * 4; i++) {
+      w.step(1 / 60);
+      p.targetX = child.x; // keep steering neutral
+      p.targetY = child.y;
+      maxStep = Math.max(maxStep, child.x - prev);
+      travelled += child.x - prev;
+      prev = child.x;
+    }
+    // peak ~1480 u/s -> under 26 units per 60 Hz frame (it was ~38 with the old profile)
+    expect(maxStep * 60).toBeLessThan(1550);
+    expect(travelled).toBeGreaterThan(PHYSICS.SPLIT_BOOST * 0.97);
+  });
+
+  it('ejected mass keeps its snappy profile', () => {
+    const { w, p } = setup(200);
+    p.ejecting = true;
+    w.step(1 / 60);
+    const blob = w.entities.find((e) => e.kind === 'eject')!;
+    const x0 = blob.x;
+    w.step(1 / 60);
+    expect((blob.x - x0) * 60).toBeGreaterThan(2000);
+  });
+});
+
 describe('ejected blobs', () => {
   it('push each other apart instead of stacking', () => {
     const w = emptyWorld();
