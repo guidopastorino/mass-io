@@ -201,13 +201,18 @@ test('bots mode: named, skinned minions follow the cursor and split on their key
   );
   expect(follows).toBe(true);
   // E splits the minions, the master stays whole
-  await game(page, `const m = g.minions.minionsOf(g.me)[0]; g.world.setMass(m.cells[0], 120);`);
+  // 200 -> two pieces of 100, same as the master: nobody can eat anybody during the checks
+  await game(page, `const m = g.minions.minionsOf(g.me)[0]; g.world.setMass(m.cells[0], 200);`);
   await page.keyboard.press('KeyE');
   await page.waitForTimeout(200);
   expect(await game<number>(page, 'return g.minions.minionsOf(g.me)[0].cells.length;')).toBe(2);
   expect(await game<number>(page, 'return g.me.cells.length;')).toBe(1);
   // holding Q makes minions eject toward the cursor, like a regular W
-  await game(page, `const m = g.minions.minionsOf(g.me)[0]; for (const c of m.cells) g.world.setMass(c, 300);`);
+  await game(
+    page,
+    `const m = g.minions.minionsOf(g.me)[0]; for (const c of m.cells) g.world.setMass(c, 300);
+     g.world.setMass(g.me.cells[0], 300);`,
+  );
   await page.mouse.move(1250, 360);
   await page.keyboard.down('KeyQ');
   await page.waitForTimeout(150);
@@ -238,4 +243,30 @@ test('bots mode: named, skinned minions follow the cursor and split on their key
     `const ids = new Set(g.minions.minionsOf(g.me).map((m) => m.id)); return g.world.leaderboard.some((e) => ids.has(e.id));`,
   );
   expect(onBoard).toBe(false);
+});
+
+test('bots mode: after dying, play again respawns next to your biggest bot', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(() => localStorage.setItem('mass-io:settings', JSON.stringify({ botCount: 0, mode: 'bots' })));
+  await page.reload();
+  await play(page, 'Boss');
+  await expect(page.getByTestId('minions')).toContainText('1/3', { timeout: 3000 });
+  // grow the minion, park it far from the master, then kill the master
+  await game(
+    page,
+    `const m = g.minions.minionsOf(g.me)[0]; const c = m.cells[0];
+     g.world.setMass(c, 600); c.x = c.px = 2000; c.y = c.py = 2000;
+     const sink = g.world.createEntity('spawner', 0, 0, 1, '#000');
+     for (const cell of [...g.me.cells]) g.world.absorb(sink, cell);`,
+  );
+  await expect(page.getByTestId('death')).toBeVisible();
+  await page.getByTestId('play-again').click();
+  await expect(page.getByTestId('death')).toBeHidden();
+  const gap = await game<number>(
+    page,
+    `const m = g.minions.biggestMinion(g.me); const a = m.cells[0], b = g.me.cells[0];
+     return Math.hypot(a.x - b.x, a.y - b.y) - a.radius - b.radius;`,
+  );
+  expect(gap).toBeGreaterThan(0);
+  expect(gap).toBeLessThan(900);
 });
