@@ -23,10 +23,10 @@ test('menu shows modes, skins and starts a FFA game', async ({ page }) => {
   for (const s of ['none', 'earth', 'moon', 'mars']) await expect(page.getByTestId(`skin-${s}`)).toBeVisible();
   await page.getByTestId('skin-moon').click();
   await play(page, 'Moonie');
-  // the human starts every life with 200 mass
+  // the human starts every life with 1000 mass (± decay / a pellet eaten on spawn)
   const startMass = await game<number>(page, 'return g.world.totalMass(g.me);');
-  expect(startMass).toBeGreaterThan(195);
-  expect(startMass).toBeLessThanOrEqual(200);
+  expect(startMass).toBeGreaterThan(980);
+  expect(startMass).toBeLessThan(1030);
   const me = await game<{ name: string; skin: string; alive: boolean; mode: string }>(
     page,
     'return { name: g.me.name, skin: g.me.skin, alive: g.me.alive, mode: g.world.mode };',
@@ -82,12 +82,18 @@ test('rebound keys work in game and settings persist across reloads', async ({ p
   await page.getByTestId('tab-hud').click();
   await page.getByTestId('hud-fps').uncheck();
   await page.getByTestId('close-settings').click();
+  // No bots, so nothing interferes with the split count below.
+  await page.evaluate(() => {
+    const s = JSON.parse(localStorage.getItem('mass-io:settings')!);
+    localStorage.setItem('mass-io:settings', JSON.stringify({ ...s, botCount: 0 }));
+  });
   await page.reload();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await play(page);
   await expect(page.getByTestId('fps')).toBeHidden();
   await expect(page.getByTestId('ping')).toBeVisible();
-  await game(page, 'g.world.setMass(g.me.cells[0], 300);');
+  // 120 mass: enough to split, too small to pop on a virus.
+  await game(page, 'g.world.setMass(g.me.cells[0], 120);');
   await page.keyboard.press('Space');
   await page.waitForTimeout(200);
   expect(await game<number>(page, 'return g.me.cells.length;')).toBe(1);

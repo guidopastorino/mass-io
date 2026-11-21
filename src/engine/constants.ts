@@ -14,7 +14,7 @@ export const PHYSICS = {
   // --- Player cells ---
   START_MASS: 10,
   /** Mass the human player starts each life with. */
-  PLAYER_START_MASS: 200,
+  PLAYER_START_MASS: 1000,
   /** Below this radius the cursor ease-in distance stops shrinking (world units). */
   MOVE_EASE_MIN: 30,
   /** Soft sibling collision: fraction of overlap resolved per second (exponential). */
