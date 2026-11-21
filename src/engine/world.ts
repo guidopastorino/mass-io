@@ -19,6 +19,7 @@ export interface AddPlayerOptions {
   skin?: string | null;
   color?: string;
   isBot?: boolean;
+  master?: Player | null;
 }
 
 type StepHook = (world: World, dt: number) => void;
@@ -34,6 +35,8 @@ export class World {
   readonly virusMin: number;
   readonly virusMax: number;
   readonly spawnerTarget: number;
+  /** Multiplier on recombine timers (bots mode merges faster). */
+  readonly recombineScale: number;
 
   time = 0;
   entities: Entity[] = [];
@@ -65,6 +68,7 @@ export class World {
     this.virusMin = opts.virusMin ?? PHYSICS.VIRUS_MIN_COUNT;
     this.virusMax = opts.virusMax ?? PHYSICS.VIRUS_MAX_COUNT;
     this.spawnerTarget = opts.mode === 'experimental' ? (opts.spawnerCount ?? PHYSICS.SPAWNER_COUNT) : 0;
+    this.recombineScale = opts.mode === 'bots' ? PHYSICS.BOTS_MODE_RECOMBINE_SCALE : 1;
   }
 
   /** Fills the map with its initial food, viruses and spawners. */
@@ -184,6 +188,8 @@ export class World {
       respawnAt: 0,
       stats: emptyStats(0),
       killedBy: null,
+      master: opts.master ?? null,
+      minionSplitQueue: 0,
     };
     this.players.push(p);
     return p;
@@ -258,8 +264,8 @@ export class World {
     this.setMass(cell, cell.mass - mass);
     const child = this.addCell(p, cell.x, cell.y, mass);
     this.setBoost(child, angle, boost);
-    child.mergeAt = this.time + recombineTime(mass);
-    cell.mergeAt = Math.max(cell.mergeAt, this.time + recombineTime(cell.mass));
+    child.mergeAt = this.time + recombineTime(mass) * this.recombineScale;
+    cell.mergeAt = Math.max(cell.mergeAt, this.time + recombineTime(cell.mass) * this.recombineScale);
     return child;
   }
 
@@ -679,7 +685,8 @@ export class World {
   }
 
   updateLeaderboard() {
-    const alive = this.players.filter((p) => p.alive);
+    // Minions are helpers, not contestants: they don't take leaderboard slots.
+    const alive = this.players.filter((p) => p.alive && !p.master);
     const ranked = alive
       .map((p) => ({ id: p.id, name: p.name, mass: this.totalMass(p), isHuman: !p.isBot }))
       .sort((a, b) => b.mass - a.mass);
@@ -693,7 +700,7 @@ export class World {
   rankOf(p: Player) {
     if (!p.alive) return 0;
     const m = this.totalMass(p);
-    return 1 + this.players.filter((q) => q.alive && q !== p && this.totalMass(q) > m).length;
+    return 1 + this.players.filter((q) => q.alive && !q.master && q !== p && this.totalMass(q) > m).length;
   }
 
   drainEaten() {

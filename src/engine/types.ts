@@ -66,6 +66,10 @@ export interface Player {
   respawnAt: number;
   stats: PlayerStats;
   killedBy: string | null;
+  /** Bots mode: the player controlling this minion (null for regular players). */
+  master: Player | null;
+  /** Bots mode: pending split actions to apply to this player's minions. */
+  minionSplitQueue: number;
 }
 
 export interface LeaderboardEntry {

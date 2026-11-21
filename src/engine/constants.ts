@@ -17,6 +17,13 @@ export const PHYSICS = {
   PLAYER_START_MASS: 1000,
   /** Below this radius the cursor ease-in distance stops shrinking (world units). */
   MOVE_EASE_MIN: 30,
+  // --- Bots mode (controllable minions) ---
+  /** Recombine timers are multiplied by this in bots mode (cells merge faster). */
+  BOTS_MODE_RECOMBINE_SCALE: 0.25,
+  MINIONS_PER_PLAYER: 3,
+  /** Seconds between minion spawns while a player is below the cap. */
+  MINION_SPAWN_INTERVAL: 4,
+  MINION_START_MASS: 100,
   /** Soft sibling collision: fraction of overlap resolved per second (exponential). */
   RIGID_RATE: 30,
   MIN_SPLIT_MASS: 35,
@@ -81,4 +88,4 @@ export const PHYSICS = {
   SPAWNER_PELLET_BOOST: 260,
 } as const;
 
-export type GameMode = 'ffa' | 'experimental';
+export type GameMode = 'ffa' | 'experimental' | 'bots';
