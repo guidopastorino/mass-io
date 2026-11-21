@@ -85,6 +85,7 @@ export class Game {
   /** Starts a fresh world (used for the menu backdrop and when a new game begins). */
   newSession(opts: SessionOptions) {
     this.world = new World({ mode: opts.mode, seed: opts.seed });
+    this.world.recordEaten = true;
     this.bots = new BotController(this.world);
     this.world.populate();
     this.bots.addBots(opts.botCount);
@@ -105,7 +106,7 @@ export class Game {
       this.me.skin = opts.skin;
       this.me.color = opts.color;
     }
-    w.spawnPlayer(this.me);
+    w.spawnPlayer(this.me, PHYSICS.PLAYER_START_MASS);
     this.camera.reset();
   }
 
@@ -187,7 +188,11 @@ export class Game {
 
   private applyInput() {
     const me = this.me;
-    if (!me?.alive) return;
+    if (!me?.alive) {
+      // Nothing consumes input while dead / in the menu: drop stale samples.
+      this.pendingInput = 0;
+      return;
+    }
     const s = this.getSettings();
     const W = this.canvas.clientWidth;
     const H = this.canvas.clientHeight;
@@ -198,7 +203,8 @@ export class Game {
     me.targetY = t.y;
     if (this.pendingInput) {
       const lat = performance.now() - this.pendingInput;
-      this.ping = this.ping ? this.ping * 0.9 + lat * 0.1 : lat;
+      // Samples older than a few frames mean the loop was paused (hidden tab), not latency.
+      if (lat < 250) this.ping = this.ping ? this.ping * 0.9 + lat * 0.1 : lat;
       this.pendingInput = 0;
     }
   }

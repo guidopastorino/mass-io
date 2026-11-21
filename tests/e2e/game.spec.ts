@@ -23,7 +23,10 @@ test('menu shows modes, skins and starts a FFA game', async ({ page }) => {
   for (const s of ['none', 'earth', 'moon', 'mars']) await expect(page.getByTestId(`skin-${s}`)).toBeVisible();
   await page.getByTestId('skin-moon').click();
   await play(page, 'Moonie');
-  await expect(page.getByTestId('score')).toContainText('10');
+  // the human starts every life with 100 mass
+  const startMass = await game<number>(page, 'return g.world.totalMass(g.me);');
+  expect(startMass).toBeGreaterThan(97);
+  expect(startMass).toBeLessThanOrEqual(100);
   const me = await game<{ name: string; skin: string; alive: boolean; mode: string }>(
     page,
     'return { name: g.me.name, skin: g.me.skin, alive: g.me.alive, mode: g.world.mode };',
