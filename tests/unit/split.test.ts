@@ -44,6 +44,28 @@ describe('split', () => {
     expect(total).toBeGreaterThan(3990);
   });
 
+  it('queued splits are spaced so each generation leaves the previous one', () => {
+    const { w, p } = setup(1000);
+    w.requestSplit(p, 2);
+    w.step(1 / 60);
+    expect(p.cells).toHaveLength(2);
+    w.step(1 / 60);
+    expect(p.cells).toHaveLength(2); // still waiting for SPLIT_QUEUE_INTERVAL
+    run(w, PHYSICS.SPLIT_QUEUE_INTERVAL);
+    expect(p.cells).toHaveLength(4);
+  });
+
+  it('a straight double / 16 split stays on the cursor line', () => {
+    for (const times of [2, 4]) {
+      const { w, p } = setup(1000);
+      p.targetY = 5000;
+      w.requestSplit(p, times);
+      run(w, 1.5);
+      expect(p.cells.length).toBe(times === 2 ? 4 : 16);
+      for (const c of p.cells) expect(Math.abs(c.y - 5000)).toBeLessThan(0.5);
+    }
+  });
+
   it('siblings push apart while they cannot merge', () => {
     const { w, p } = setup(200);
     w.requestSplit(p);
@@ -118,19 +140,21 @@ describe('smooth split', () => {
       travelled += child.x - prev;
       prev = child.x;
     }
-    // peak ~1480 u/s -> under 26 units per 60 Hz frame (it was ~38 with the old profile)
-    expect(maxStep * 60).toBeLessThan(1550);
+    // peak ~1330 u/s -> about 22 units per 60 Hz frame (it was ~38 with the old profile)
+    expect(maxStep * 60).toBeLessThan(1400);
     expect(travelled).toBeGreaterThan(PHYSICS.SPLIT_BOOST * 0.97);
   });
 
-  it('ejected mass keeps its snappy profile', () => {
+  it('ejected mass flies fast but with a gentler peak than the reference', () => {
     const { w, p } = setup(200);
     p.ejecting = true;
     w.step(1 / 60);
     const blob = w.entities.find((e) => e.kind === 'eject')!;
     const x0 = blob.x;
     w.step(1 / 60);
-    expect((blob.x - x0) * 60).toBeGreaterThan(2000);
+    const v = (blob.x - x0) * 60;
+    expect(v).toBeGreaterThan(1600);
+    expect(v).toBeLessThan(2000);
   });
 });
 

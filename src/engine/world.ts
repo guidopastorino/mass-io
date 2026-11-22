@@ -24,6 +24,9 @@ export interface AddPlayerOptions {
 
 type StepHook = (world: World, dt: number) => void;
 
+/** Remaining boost below which ejected blobs start pushing each other apart. */
+const EJECT_SETTLE_BOOST = 150;
+
 /**
  * Authoritative game simulation. Pure logic: no DOM, no rendering, driven by step(dt).
  */
@@ -185,6 +188,7 @@ export class World {
       targetX: 0,
       targetY: 0,
       splitQueue: 0,
+      nextSplitAt: 0,
       ejecting: false,
       lastEject: -Infinity,
       respawnAt: 0,
@@ -212,6 +216,7 @@ export class World {
     p.targetX = pos.x;
     p.targetY = pos.y;
     p.splitQueue = 0;
+    p.nextSplitAt = 0;
     p.ejecting = false;
     p.killedBy = null;
     p.stats = emptyStats(this.time);
@@ -317,8 +322,9 @@ export class World {
 
     for (const p of this.players) {
       if (!p.alive) continue;
-      if (p.splitQueue > 0) {
+      if (p.splitQueue > 0 && this.time >= p.nextSplitAt - 1e-9) {
         p.splitQueue--;
+        p.nextSplitAt = this.time + PHYSICS.SPLIT_QUEUE_INTERVAL;
         this.processSplit(p);
       }
       if (p.ejecting && this.time - p.lastEject >= PHYSICS.EJECT_COOLDOWN) this.processEject(p);
@@ -348,7 +354,9 @@ export class World {
     for (const e of this.entities) {
       if (e.removed) continue;
       if (e.boost > 0) {
-        const s = boostStep(e.boost, dt, e.kind === 'cell' ? PHYSICS.SPLIT_BOOST_DECAY : PHYSICS.BOOST_DECAY);
+        const rate =
+          e.kind === 'cell' ? PHYSICS.SPLIT_BOOST_DECAY : e.kind === 'eject' ? PHYSICS.EJECT_BOOST_DECAY : PHYSICS.BOOST_DECAY;
+        const s = boostStep(e.boost, dt, rate);
         e.x += e.bdx * s;
         e.y += e.bdy * s;
         e.boost -= s;
@@ -396,8 +404,12 @@ export class World {
           const overlap = a.radius + b.radius - d;
           if (overlap <= 0) continue;
           if (d < 0.001) {
-            dx = 1;
-            dy = 0;
+            // Coincident centers: separate along the younger cell's flight direction
+            // (never a fixed axis, which would skew splits sideways).
+            const y = a.born > b.born ? a : b;
+            const s = y === b ? 1 : -1;
+            dx = y.boost > 0 ? y.bdx * s : Math.cos(a.id * 2.399);
+            dy = y.boost > 0 ? y.bdy * s : Math.sin(a.id * 2.399);
             d = 1;
           }
           const nx = dx / d;
@@ -425,6 +437,8 @@ export class World {
       if (a.kind !== 'eject' || a.removed) continue;
       this.grid.query(a.x, a.y, a.radius * 2, (b) => {
         if (b.kind !== 'eject' || b.id <= a.id || b.removed) return;
+        // Blobs still in flight keep their straight line; they only spread once slowing down.
+        if (a.boost > EJECT_SETTLE_BOOST && b.boost > EJECT_SETTLE_BOOST) return;
         let dx = b.x - a.x;
         let dy = b.y - a.y;
         let d = Math.sqrt(dx * dx + dy * dy);

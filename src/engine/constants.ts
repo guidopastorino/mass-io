@@ -63,10 +63,20 @@ export const PHYSICS = {
   BOOST_DECAY: -25 * Math.log(8 / 9),
   /**
    * Player cells (split / virus pop) use a gentler decay: same total distance, but the
-   * peak speed drops from ~2300 to ~1480 u/s and the glide lasts ~1.6 s instead of ~1 s,
+   * peak speed drops from ~2300 to ~1330 u/s and the glide lasts ~1.8 s instead of ~1 s,
    * so split-running feels smooth instead of a jump.
    */
-  SPLIT_BOOST_DECAY: 1.9,
+  SPLIT_BOOST_DECAY: 1.7,
+  /**
+   * Ejected blobs: gentler than the reference 1/9-per-tick decay (peak ~1870 u/s instead
+   * of ~2300) so feeding reads as a smooth stream, same total distance.
+   */
+  EJECT_BOOST_DECAY: 2.4,
+  /**
+   * Queued splits (double split / 16 split) are spaced by this many seconds, like the
+   * reference servers' 40 ms tick, so each generation clearly leaves the previous one.
+   */
+  SPLIT_QUEUE_INTERVAL: 0.045,
 
   // --- Eject (W) ---
   EJECT_MASS: 13,

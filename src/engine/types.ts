@@ -60,6 +60,8 @@ export interface Player {
   targetY: number;
   /** Pending split actions (one per key press). */
   splitQueue: number;
+  /** World time before which the next queued split waits (SPLIT_QUEUE_INTERVAL). */
+  nextSplitAt: number;
   ejecting: boolean;
   lastEject: number;
   /** Time when a dead bot should respawn. */
