@@ -216,9 +216,21 @@ export class Game {
     const H = this.canvas.clientHeight;
     const sx = W / 2 + (this.mouseX - W / 2) * s.sensitivity;
     const sy = H / 2 + (this.mouseY - H / 2) * s.sensitivity;
-    const t = this.camera.screenToWorld(sx, sy, W, H);
-    me.targetX = t.x;
-    me.targetY = t.y;
+    // The cursor is read relative to the player's own center of mass, not the (lagging,
+    // zooming) camera: when cells fly out on a split the camera trails and zooms out, and
+    // a camera-relative target would slide sideways and bend straight double/16 splits.
+    let sumR = 0;
+    let cx = 0;
+    let cy = 0;
+    for (const c of me.cells) {
+      sumR += c.radius;
+      cx += c.x * c.radius;
+      cy += c.y * c.radius;
+    }
+    if (sumR <= 0) return;
+    const z = this.camera.zoom;
+    me.targetX = cx / sumR + (sx - W / 2) / z;
+    me.targetY = cy / sumR + (sy - H / 2) / z;
     if (this.pendingInput) {
       const lat = performance.now() - this.pendingInput;
       // Samples older than a few frames mean the loop was paused (hidden tab), not latency.
