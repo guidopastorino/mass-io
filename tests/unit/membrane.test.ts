@@ -61,6 +61,52 @@ describe('membrane', () => {
     expect(Math.max(...sys.ring(1)!.off.map(Math.abs))).toBeLessThan(0.01);
   });
 
+  it('dents stay subtle and never wobble past round on release', () => {
+    const sys = new MembraneSystem();
+    const a = { id: 1, x: 5000, y: 5000, r: 100 };
+    const sib = { id: 2, x: 5150, y: 5000, r: 100 }; // pressed hard: 50 units overlap
+    settle(sys, [a], [a, sib]);
+    expect(sys.ring(1)!.off[0]).toBeGreaterThan(-8);
+    let over = 0;
+    for (let i = 0; i < 120; i++) {
+      sys.update([a], [a], points, 10000, 1 / 60);
+      over = Math.max(over, sys.ring(1)!.off[0]);
+    }
+    expect(over).toBeLessThan(0.5);
+  });
+
+  it('fades the dent with overlap depth instead of switching it off', () => {
+    const sys = new MembraneSystem();
+    const a = { id: 1, x: 5000, y: 5000, r: 100 };
+    const b = { id: 2, x: 5200, y: 5000, r: 100 };
+    let prev = 0;
+    let maxJump = 0;
+    // b slides through a (like a split piece flying out, reversed)
+    for (let i = 0; i < 200; i++) {
+      b.x = 5200 - i;
+      sys.update([a], [a, b], points, 10000, 1 / 60);
+      const o = sys.ring(1)!.off[0];
+      maxJump = Math.max(maxJump, Math.abs(o - prev));
+      prev = o;
+    }
+    expect(maxJump).toBeLessThan(0.6);
+  });
+
+  it('a swallow gives only a small ripple where the prey entered', () => {
+    const sys = new MembraneSystem();
+    const a = { id: 1, x: 5000, y: 5000, r: 100 };
+    settle(sys, [a]);
+    sys.kick(1, 0, 0.02, 100);
+    let peak = 0;
+    for (let i = 0; i < 60; i++) {
+      sys.update([a], [a], points, 10000, 1 / 60);
+      peak = Math.min(peak, sys.ring(1)!.off[0]);
+    }
+    expect(peak).toBeLessThan(-0.8);
+    expect(peak).toBeGreaterThan(-4);
+    expect(Math.abs(sys.ring(1)!.off[16])).toBeLessThan(0.3); // opposite side untouched
+  });
+
   it('uses more points for bigger on-screen cells', () => {
     expect(pointsFor(10)).toBeLessThan(pointsFor(300));
   });

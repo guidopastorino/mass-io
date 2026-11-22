@@ -113,6 +113,12 @@ export class Renderer {
     for (const { prey, pred } of world.drainEaten()) {
       if (this.dying.length > 800) this.dying.shift();
       this.dying.push({ prey, pred, sx: prey.rx, sy: prey.ry, r: prey.renderRadius, t: 0 });
+      // A small ripple where a bite enters (ejected mass, cells, viruses); pellets leave the edge alone.
+      if (opt.animations && pred.kind === 'cell' && prey.kind !== 'food') {
+        const ratio = prey.mass / Math.max(1, pred.mass);
+        const strength = Math.min(0.045, 0.016 + Math.sqrt(ratio) * 0.09);
+        this.membranes.kick(pred.id, Math.atan2(prey.ry - pred.ry, prey.rx - pred.rx), strength, pred.renderRadius);
+      }
     }
 
     const z = cam.zoom;
