@@ -109,6 +109,8 @@ export class World {
       shooterId: 0,
       acc: 0,
       renderRadius: radius,
+      rx: x,
+      ry: y,
     };
     this.entities.push(e);
     if (kind === 'food') this.foodCount++;
@@ -271,6 +273,11 @@ export class World {
     if (!p || p.cells.length >= PHYSICS.MAX_CELLS) return null;
     this.setMass(cell, cell.mass - mass);
     const child = this.addCell(p, cell.x, cell.y, mass);
+    // Emerge from where the parent is drawn, and keep the parent's drawn size so the
+    // piece grows out of it instead of popping in at full size.
+    child.rx = cell.rx;
+    child.ry = cell.ry;
+    child.renderRadius = Math.min(cell.renderRadius, child.radius * 0.6);
     this.setBoost(child, angle, boost);
     child.mergeAt = this.time + recombineTime(mass) * this.recombineScale;
     cell.mergeAt = Math.max(cell.mergeAt, this.time + recombineTime(cell.mass) * this.recombineScale);

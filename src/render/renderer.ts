@@ -8,7 +8,16 @@ import { MembraneSystem, pointsFor, type MembraneBody } from './membrane';
 import { getSkinCanvas } from './skins';
 
 /** Seconds a swallowed entity takes to slide into its eater. */
-const SWALLOW_TIME = 0.14;
+const SWALLOW_TIME = 0.16;
+/**
+ * Rate (1/s) at which drawn positions chase the simulation (time constant ~60 ms).
+ * Like the interpolation delay of the classic clients, this turns the instant start of a
+ * split / eject / collision push into a short ease-in, which is what makes motion read as
+ * fluid instead of jumpy, while adding almost no perceptible lag.
+ */
+const POSITION_SMOOTHING = 16;
+/** A drawn position further than this from the simulation snaps (teleport / respawn). */
+const SNAP_DISTANCE = 900;
 
 interface Dying {
   prey: Entity;
@@ -33,6 +42,28 @@ const THEMES = {
 /** Interpolated position helper. */
 const ix = (e: Entity, a: number) => e.px + (e.x - e.px) * a;
 const iy = (e: Entity, a: number) => e.py + (e.y - e.py) * a;
+
+/**
+ * Advances every entity's drawn position (rx, ry) toward its interpolated simulation
+ * position. Run once per frame before the camera and the renderer read them.
+ */
+export function smoothPositions(world: World, alpha: number, dt: number, enabled: boolean) {
+  const k = enabled ? smoothing(POSITION_SMOOTHING, dt) : 1;
+  for (const e of world.entities) {
+    if (e.removed) continue;
+    const x = ix(e, alpha);
+    const y = iy(e, alpha);
+    const dx = x - e.rx;
+    const dy = y - e.ry;
+    if (k >= 1 || !(dx * dx + dy * dy < SNAP_DISTANCE * SNAP_DISTANCE)) {
+      e.rx = x;
+      e.ry = y;
+    } else {
+      e.rx += dx * k;
+      e.ry += dy * k;
+    }
+  }
+}
 
 export class Renderer {
   private ctx: CanvasRenderingContext2D;
@@ -69,7 +100,7 @@ export class Renderer {
     return dpr;
   }
 
-  render(world: World, cam: Camera, alpha: number, me: Player | null, opt: RenderOptions, dt: number) {
+  render(world: World, cam: Camera, me: Player | null, opt: RenderOptions, dt: number) {
     const dpr = this.resize();
     const ctx = this.ctx;
     const W = this.width;
@@ -81,7 +112,7 @@ export class Renderer {
 
     for (const { prey, pred } of world.drainEaten()) {
       if (this.dying.length > 800) this.dying.shift();
-      this.dying.push({ prey, pred, sx: prey.x, sy: prey.y, r: prey.renderRadius, t: 0 });
+      this.dying.push({ prey, pred, sx: prey.rx, sy: prey.ry, r: prey.renderRadius, t: 0 });
     }
 
     const z = cam.zoom;
@@ -111,8 +142,8 @@ export class Renderer {
       e.renderRadius += (e.radius - e.renderRadius) * rs;
       if (!(e.renderRadius > 0)) e.renderRadius = e.radius;
       const r = e.renderRadius;
-      const x = ix(e, alpha);
-      const y = iy(e, alpha);
+      const x = e.rx;
+      const y = e.ry;
       if (x + r < left || x - r > right || y + r < top || y - r > bottom) continue;
       if (e.kind === 'food') {
         if (!opt.hud.pellets) continue;
@@ -136,18 +167,18 @@ export class Renderer {
       const b = this.bodyPool[pi] ?? (this.bodyPool[pi] = { id: 0, x: 0, y: 0, r: 0 });
       pi++;
       b.id = e.id;
-      b.x = ix(e, alpha);
-      b.y = iy(e, alpha);
+      b.x = e.rx;
+      b.y = e.ry;
       b.r = e.renderRadius;
       this.obstacles.push(b);
       if (e.kind === 'cell') this.bodies.push(b);
     }
     if (opt.animations) this.membranes.update(this.bodies, this.obstacles, (b) => pointsFor(b.r * z), world.mapSize, dt);
 
-    this.drawDying(alpha, dt);
+    this.drawDying(dt);
     for (const e of list) {
-      const x = ix(e, alpha);
-      const y = iy(e, alpha);
+      const x = e.rx;
+      const y = e.ry;
       switch (e.kind) {
         case 'eject':
           this.drawBlob(x, y, e.renderRadius, e.color);
@@ -299,19 +330,20 @@ export class Renderer {
   }
 
   /** Swallowed entities slide into their eater's center while shrinking. */
-  private drawDying(alpha: number, dt: number) {
+  private drawDying(dt: number) {
     const ctx = this.ctx;
     let w = 0;
     for (const d of this.dying) {
       d.t += dt / SWALLOW_TIME;
       if (d.t >= 1) continue;
       this.dying[w++] = d;
-      const k = d.t * d.t;
-      const tx = ix(d.pred, alpha);
-      const ty = iy(d.pred, alpha);
+      // ease-in-out slide toward the eater, shrinking with an ease-in so it doesn't vanish early
+      const k = d.t * d.t * (3 - 2 * d.t);
+      const tx = d.pred.rx;
+      const ty = d.pred.ry;
       const x = d.sx + (tx - d.sx) * k;
       const y = d.sy + (ty - d.sy) * k;
-      const r = d.r * (1 - d.t);
+      const r = d.r * (1 - d.t * d.t);
       if (r <= 0.5) continue;
       ctx.fillStyle = d.prey.color;
       ctx.beginPath();

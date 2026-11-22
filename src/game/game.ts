@@ -5,7 +5,7 @@ import { MinionController } from '../engine/minions';
 import type { SkinId } from '../engine/skins';
 import type { LeaderboardEntry, Player, PlayerStats } from '../engine/types';
 import { World } from '../engine/world';
-import { Renderer } from '../render/renderer';
+import { Renderer, smoothPositions } from '../render/renderer';
 import type { Action, Settings } from './settings';
 
 export interface HudSnapshot {
@@ -167,9 +167,10 @@ export class Game {
     }
     if (ticks === 15) this.acc = 0;
     const alpha = this.acc / step;
-    this.updateCamera(alpha, dt);
     const s = this.getSettings();
-    this.renderer.render(this.world, this.camera, alpha, this.me, { theme: s.theme, hud: s.hud, animations: s.animations }, dt);
+    smoothPositions(this.world, alpha, dt, s.animations);
+    this.updateCamera(dt);
+    this.renderer.render(this.world, this.camera, this.me, { theme: s.theme, hud: s.hud, animations: s.animations }, dt);
 
     this.frames++;
     this.fpsTimer += dt;
@@ -254,7 +255,7 @@ export class Game {
     }
   }
 
-  private updateCamera(alpha: number, dt: number) {
+  private updateCamera(dt: number) {
     const W = this.canvas.clientWidth;
     const H = this.canvas.clientHeight;
     let target: Player | null | undefined = this.me?.alive ? this.me : null;
@@ -269,8 +270,8 @@ export class Game {
     }
     if (!target?.alive) return;
     const cells: CameraCell[] = target.cells.map((c) => ({
-      x: c.px + (c.x - c.px) * alpha,
-      y: c.py + (c.y - c.py) * alpha,
+      x: c.rx,
+      y: c.ry,
       radius: c.renderRadius,
     }));
     this.camera.update(cells, W, H, dt);

@@ -34,6 +34,9 @@ export interface Entity {
   acc: number;
   /** Visual radius, smoothed by the renderer. */
   renderRadius: number;
+  /** Visual position: chases the interpolated simulation position so bursts glide in. */
+  rx: number;
+  ry: number;
 }
 
 export interface PlayerStats {
